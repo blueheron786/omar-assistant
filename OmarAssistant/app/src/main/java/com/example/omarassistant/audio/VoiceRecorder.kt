@@ -3,6 +3,8 @@ package com.example.omarassistant.audio
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.*
 import java.io.ByteArrayOutputStream
@@ -120,21 +122,47 @@ class VoiceRecorder(
         val recordingDuration = recordedData.size * 1000L / (SAMPLE_RATE * 2) // 16-bit = 2 bytes per sample
         
         Log.d(TAG, "Processing recording - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes, Min required: ${MIN_RECORDING_DURATION_MS}ms")
+        Log.d(TAG, "Recording check: duration>=min? ${recordingDuration >= MIN_RECORDING_DURATION_MS}, notEmpty? ${recordedData.isNotEmpty()}")
         
-        withContext(Dispatchers.Main) {
-            try {
-                if (recordingDuration >= MIN_RECORDING_DURATION_MS && recordedData.isNotEmpty()) {
-                    Log.d(TAG, "Calling onRecordingFinished with ${recordedData.size} bytes")
-                    onRecordingFinished?.invoke(recordedData)
-                    Log.d(TAG, "Recording finished - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes")
-                } else {
-                    Log.d(TAG, "Calling onRecordingCancelled - duration too short or empty")
-                    onRecordingCancelled?.invoke()
-                    Log.d(TAG, "Recording cancelled - too short or empty")
+        // Use immediate callback without context switching to prevent hangs
+        try {
+            if (recordingDuration >= MIN_RECORDING_DURATION_MS && recordedData.isNotEmpty()) {
+                Log.d(TAG, "Calling onRecordingFinished with ${recordedData.size} bytes")
+                
+                // Post to main thread separately to avoid blocking
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        onRecordingFinished?.invoke(recordedData)
+                        Log.d(TAG, "Recording finished callback completed - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in onRecordingFinished callback", e)
+                        try {
+                            onRecordingCancelled?.invoke()
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "Error in onRecordingCancelled callback", e2)
+                        }
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in recording callback", e)
-                onRecordingCancelled?.invoke()
+            } else {
+                Log.d(TAG, "Calling onRecordingCancelled - duration too short or empty")
+                
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        onRecordingCancelled?.invoke()
+                        Log.d(TAG, "Recording cancelled callback completed - too short or empty")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in onRecordingCancelled callback", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up recording callback", e)
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    onRecordingCancelled?.invoke()
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Error in fallback callback", e2)
+                }
             }
         }
     }

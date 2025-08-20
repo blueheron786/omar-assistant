@@ -57,6 +57,9 @@ class VoiceAssistantOrchestrator(private val context: Context) {
     private val _lastResponse = MutableStateFlow("")
     val lastResponse: StateFlow<String> = _lastResponse.asStateFlow()
     
+    // Recovery mechanism
+    private var recoveryJob: Job? = null
+    
     // Configuration
     private var currentConfig: AssistantConfig? = null
     private val orchestratorScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -161,6 +164,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         if (text.isBlank()) return
         
         try {
+            Log.i(TAG, "📝 UNDERSTOOD (Manual): '$text'")
             updateState(AudioState.PROCESSING)
             
             val command = VoiceCommand(
@@ -175,8 +179,6 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error processing text command", e)
             speakResponse("I had trouble processing that command.")
-        } finally {
-            returnToListening()
         }
     }
     
@@ -234,12 +236,20 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         Log.d(TAG, "Creating VoiceRecorder...")
         voiceRecorder = VoiceRecorder(config.vadSensitivity).apply {
             onRecordingStarted = { updateState(AudioState.RECORDING_COMMAND) }
-            onRecordingFinished = { audioData -> handleVoiceRecorded(audioData) }
+            onRecordingFinished = { audioData -> 
+                try {
+                    handleVoiceRecorded(audioData)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in VoiceRecorder callback", e)
+                    orchestratorScope.launch {
+                        speakResponse("I had trouble processing that. Please try again.")
+                    }
+                }
+            }
             onRecordingCancelled = { 
                 orchestratorScope.launch { 
                     Log.d(TAG, "Voice recording was cancelled")
                     speakResponse("I didn't hear anything. Please try again.")
-                    returnToListening() 
                 } 
             }
             onVoiceActivityChanged = { /* Handle if needed */ }
@@ -295,41 +305,47 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 Log.d(TAG, "handleVoiceRecorded called with ${audioData.size} bytes")
                 updateState(AudioState.PROCESSING)
                 
-                // Audio feedback for recording end - REMOVED
-                
-                // Convert audio to text (simplified - in production use proper STT)
-                val text = simulateSpeechToText(audioData)
-                Log.d(TAG, "simulateSpeechToText returned: '$text'")
-                
-                if (text.isNotEmpty()) {
-                    val command = VoiceCommand(
-                        originalText = text,
-                        intent = "voice_command",
-                        confidence = 0.8f
-                    )
+                // Add timeout protection to prevent hanging
+                withTimeout(10000) { // 10 second timeout
+                    // Audio feedback for recording end - REMOVED
                     
-                    Log.d(TAG, "Processing voice command: $text")
+                    // Convert audio to text (simplified - in production use proper STT)
+                    val text = simulateSpeechToText(audioData)
+                    Log.d(TAG, "simulateSpeechToText returned: '$text'")
                     
-                    val response = processCommand(command)
-                    
-                    // Success beep before speaking response - REMOVED
-                    delay(300) // Brief pause after success beep
-                    
-                    speakResponse(response)
-                    
-                    onCommandProcessed?.invoke(command, response)
-                    
-                } else {
-                    // Error beep for unrecognized speech - REMOVED
-                    speakResponse("I didn't catch that. Could you please repeat?")
+                    if (text.isNotEmpty()) {
+                        Log.i(TAG, "📝 UNDERSTOOD (VoiceRecorder): '$text'")
+                        val command = VoiceCommand(
+                            originalText = text,
+                            intent = "voice_command",
+                            confidence = 0.8f
+                        )
+                        
+                        Log.d(TAG, "Processing voice command: $text")
+                        
+                        val response = processCommand(command)
+                        
+                        // Success beep before speaking response - REMOVED
+                        delay(300) // Brief pause after success beep
+                        
+                        speakResponse(response)
+                        
+                        onCommandProcessed?.invoke(command, response)
+                        
+                    } else {
+                        Log.w(TAG, "📝 UNDERSTOOD (VoiceRecorder): (empty)")
+                        // Error beep for unrecognized speech - REMOVED
+                        speakResponse("I didn't catch that. Could you please repeat?")
+                    }
                 }
                 
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "VoiceRecorder processing timeout", e)
+                speakResponse("I had trouble processing that. Please try again.")
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing voice recording", e)
                 // Error beep for processing failure - REMOVED
                 speakResponse("I had trouble understanding that. Please try again.")
-            } finally {
-                returnToListening()
             }
         }
     }
@@ -361,12 +377,16 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                                 Log.d(TAG, "No speech match from SpeechRecognizer, trying VoiceRecorder fallback")
                                 // Don't give immediate feedback - try VoiceRecorder instead
                                 updateState(AudioState.RECORDING_COMMAND)
-                                voiceRecorder?.startRecording()
+                                try {
+                                    voiceRecorder?.startRecording()
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to start VoiceRecorder fallback", e)
+                                    speakResponse("Sorry, I couldn't hear that clearly.")
+                                }
                             }
                             else -> {
                                 // For other errors, give feedback and return to listening  
                                 speakResponse("Sorry, I couldn't hear that clearly.")
-                                returnToListening()
                             }
                         }
                     }
@@ -376,6 +396,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                     val text = matches?.firstOrNull()?.trim().orEmpty()
                     Log.d(TAG, "Speech results: $text")
                     if (text.isNotEmpty()) {
+                        Log.i(TAG, "📝 UNDERSTOOD: '$text'")
                         orchestratorScope.launch {
                             updateState(AudioState.PROCESSING)
                             val command = VoiceCommand(text, "voice_command", 0.9f)
@@ -386,10 +407,10 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                             onCommandProcessed?.invoke(command, response)
                         }
                     } else {
+                        Log.w(TAG, "📝 UNDERSTOOD: (empty)")
                         orchestratorScope.launch {
                             // Error beep - REMOVED
                             speakResponse("I didn't catch that. Could you repeat?")
-                            returnToListening()
                         }
                     }
                 }
@@ -398,7 +419,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             })
 
             val locale = when (config.language.lowercase()) {
-                "en", "en-gb", "en_uk", "en-gb" -> java.util.Locale.UK
+                "en", "en-gb", "en_uk" -> java.util.Locale.UK
                 "ar" -> java.util.Locale("ar")
                 "es" -> java.util.Locale("es")
                 "fr" -> java.util.Locale.FRENCH
@@ -437,7 +458,6 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             orchestratorScope.launch {
                 // Error beep - REMOVED
                 speakResponse("I couldn't start listening. Please try again.")
-                returnToListening()
             }
         }
     }
@@ -486,9 +506,13 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             updateState(AudioState.SPEAKING)
             _lastResponse.value = response
             
+            // Ensure AudioProcessor is stopped during TTS
+            audioProcessor?.stopListening()
+            
             ttsEngine.speak(response) {
                 // Called when TTS finishes
                 orchestratorScope.launch {
+                    Log.d(TAG, "TTS finished, returning to listening")
                     returnToListening()
                 }
             }
@@ -518,6 +542,25 @@ class VoiceAssistantOrchestrator(private val context: Context) {
     private fun updateState(newState: AudioState) {
         _state.value = newState
         Log.d(TAG, "State changed to: $newState")
+        
+        // Start recovery timer for non-idle states to prevent getting stuck
+        recoveryJob?.cancel()
+        if (newState != AudioState.IDLE && newState != AudioState.LISTENING_FOR_WAKE_WORD) {
+            recoveryJob = orchestratorScope.launch {
+                delay(15000) // 15 second timeout
+                Log.w(TAG, "Recovery timeout triggered from state: $newState")
+                if (_state.value == newState) { // Still in same state
+                    Log.w(TAG, "System appears stuck in $newState, forcing recovery")
+                    try {
+                        // Force return to listening
+                        speakResponse("Let me restart listening.")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during recovery", e)
+                        returnToListening()
+                    }
+                }
+            }
+        }
     }
     
     /**
