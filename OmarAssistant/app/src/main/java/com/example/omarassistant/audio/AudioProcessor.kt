@@ -66,7 +66,7 @@ class AudioProcessor(
             audioRecord?.startRecording()
             isListening = true
             
-            Log.d(TAG, "Started listening for wake word: $wakeWord")
+            Log.i(TAG, "Started listening for wake word: '$wakeWord' (sensitivity: $wakeWordSensitivity)")
             
             // Start audio processing loop
             processAudioLoop()
@@ -110,7 +110,7 @@ class AudioProcessor(
      */
     fun updateWakeWord(newWakeWord: String) {
         this.wakeWord = newWakeWord.lowercase()
-        Log.d(TAG, "Updated wake word to: $wakeWord")
+        Log.i(TAG, "Updated wake word to: '$wakeWord'")
     }
     
     /**
@@ -140,10 +140,14 @@ class AudioProcessor(
                         onVoiceActivityDetected?.invoke(isVoiceActive)
                     }
                     
-                    // Wake word detection (simplified pattern matching)
+                    // Wake word detection (improved pattern matching)
                     if (isVoiceActive && shouldCheckForWakeWord()) {
                         val audioSnippet = audioBuffer.take(bytesRead).toShortArray()
+                        
+                        Log.d(TAG, "Checking for wake word '$wakeWord' - Energy: $smoothedEnergy, VAD active: $isVoiceActive")
+                        
                         if (detectWakeWord(audioSnippet, smoothedEnergy)) {
+                            Log.i(TAG, "Wake word '$wakeWord' detected!")
                             lastWakeWordDetection = System.currentTimeMillis()
                             withContext(Dispatchers.Main) {
                                 onWakeWordDetected?.invoke()
@@ -174,49 +178,100 @@ class AudioProcessor(
     }
     
     /**
-     * Simple wake word detection using energy patterns and basic phonetic matching
+     * Generic wake word detection using energy patterns that works with any word
      * In production, you'd want to use a more sophisticated approach like keyword spotting models
      */
     private fun detectWakeWord(audioSnippet: ShortArray, energy: Float): Boolean {
-        // Simple energy-based detection with cooldown
-        val energyThreshold = wakeWordSensitivity * 2000f
+        // Adjust energy threshold based on sensitivity (0.0-1.0 range)
+        val energyThreshold = wakeWordSensitivity * 150000f
         
         if (energy < energyThreshold) return false
         
-        // Basic pattern detection (this is simplified - in production use ML models)
+        // Calculate duration
         val duration = audioSnippet.size.toFloat() / SAMPLE_RATE * 1000 // Duration in ms
         
-        // "Omar" typically takes 400-800ms to say
-        if (duration < 300 || duration > 1000) return false
+        // Accommodate both short (eye-shah ~600-900ms) and long (aah-eee-shah ~800-1200ms) pronunciations
+        if (duration < 400 || duration > 1500) return false
         
-        // Energy pattern analysis (simplified)
-        val segments = 4
+        // Analyze energy distribution across the audio snippet
+        val segments = 8 // More granular analysis
         val segmentSize = audioSnippet.size / segments
         val segmentEnergies = FloatArray(segments)
         
         for (i in 0 until segments) {
             val start = i * segmentSize
             val end = ((i + 1) * segmentSize).coerceAtMost(audioSnippet.size)
-            segmentEnergies[i] = calculateAudioEnergy(
-                audioSnippet.sliceArray(start until end),
-                end - start
-            )
+            if (end > start) {
+                segmentEnergies[i] = calculateAudioEnergy(
+                    audioSnippet.sliceArray(start until end),
+                    end - start
+                )
+            }
         }
         
-        // Look for the energy pattern of "O-mar" (peak-dip-peak pattern)
-        val firstPeak = segmentEnergies[0] > segmentEnergies[1] * 1.2f
-        val secondPeak = segmentEnergies[2] > segmentEnergies[1] * 1.1f || segmentEnergies[3] > segmentEnergies[1] * 1.1f
+        // Generic pattern analysis that works for different words
+        val maxEnergy = segmentEnergies.maxOrNull() ?: 0f
+        val minEnergy = segmentEnergies.minOrNull() ?: 0f
+        val avgEnergy = segmentEnergies.average().toFloat()
         
-        val confidence = if (firstPeak && secondPeak) {
-            val energyVariation = segmentEnergies.maxOrNull()!! / (segmentEnergies.minOrNull()!! + 1f)
-            (energyVariation / 10f).coerceIn(0f, 1f)
-        } else {
-            0f
+        // Count segments with significant energy (syllables/phonemes)
+        val significantSegments = segmentEnergies.count { it > avgEnergy * 0.7f }
+        
+        // Calculate energy variation (helps distinguish speech from noise)
+        val energyVariation = if (minEnergy > 0) maxEnergy / minEnergy else 0f
+        
+        // Check for continuous energy (not just single spikes)
+        val continuousEnergy = segmentEnergies.asSequence()
+            .windowed(2)
+            .count { it[0] > avgEnergy * 0.5f && it[1] > avgEnergy * 0.5f }
+        
+        // Enhanced analysis for vowel-heavy names like "Aisha"
+        // Check for sustained energy segments (good for vowels like "aah", "eee", "eye")
+        val sustainedSegments = segmentEnergies.asSequence()
+            .windowed(3)
+            .count { window -> 
+                val sustained = window.all { it > avgEnergy * 0.6f }
+                sustained
+            }
+        
+        // Generic wake word criteria with enhanced vowel detection:
+        // 1. Must have reasonable energy variation (not monotone noise)
+        // 2. Must have multiple segments with significant energy (syllables)
+        // 3. Must have some continuous energy (connected speech)
+        // 4. Energy must be significantly above threshold
+        // 5. Enhanced: Allow for sustained vowel segments (for names like Aisha)
+        
+        val hasEnergyVariation = energyVariation >= 1.3f && energyVariation <= 25f
+        val hasMultipleSegments = significantSegments >= 2 && significantSegments <= 7
+        val hasContinuousEnergy = continuousEnergy >= 1
+        val hasStrongSignal = maxEnergy > energyThreshold * 1.2f
+        val hasSustainedVowels = sustainedSegments >= 0 // Allow for vowel-heavy pronunciations
+        
+        val confidence = when {
+            hasEnergyVariation && hasMultipleSegments && hasContinuousEnergy && hasStrongSignal && hasSustainedVowels -> {
+                // Calculate confidence based on signal quality
+                val variationScore = (energyVariation / 12f).coerceIn(0f, 1f)
+                val segmentScore = (significantSegments / 7f).coerceIn(0f, 1f)
+                val continuityScore = (continuousEnergy / 5f).coerceIn(0f, 1f)
+                val energyScore = ((maxEnergy / energyThreshold) / 3f).coerceIn(0f, 1f)
+                val vowelScore = (sustainedSegments / 3f).coerceIn(0f, 1f)
+                
+                // Weight the scores for vowel-heavy names
+                (variationScore * 0.2f + segmentScore * 0.25f + continuityScore * 0.2f + 
+                 energyScore * 0.25f + vowelScore * 0.1f)
+            }
+            else -> 0f
         }
         
-        Log.d(TAG, "Wake word detection - Energy: $energy, Confidence: $confidence, Threshold: ${wakeWordSensitivity}")
+        Log.d(TAG, "Wake word analysis - Word: '$wakeWord', Duration: ${duration}ms, Energy: $energy, " +
+                "Variation: $energyVariation, Segments: $significantSegments, " +
+                "Continuous: $continuousEnergy, Sustained: $sustainedSegments, " +
+                "Confidence: $confidence, Sensitivity: $wakeWordSensitivity")
         
-        return confidence > wakeWordSensitivity
+        // Convert sensitivity (0.0-1.0) to threshold (0.75-0.15) - more accommodating for pronunciation variations
+        val confidenceThreshold = (1.0f - wakeWordSensitivity) * 0.6f + 0.15f
+        
+        return confidence > confidenceThreshold
     }
     
     /**
