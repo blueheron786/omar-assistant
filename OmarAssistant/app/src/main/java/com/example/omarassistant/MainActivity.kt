@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.title = "OMAR Assistant"
+        supportActionBar?.title = "Assistant Aisha"
         
         // Start/Stop button
         binding.btnToggleService.setOnClickListener {
@@ -155,7 +155,7 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread {
                             binding.tvLastCommand.text = "\"${command.originalText}\""
                             binding.tvLastResponse.text = response
-                            binding.tvStatus.text = "Listening for 'Omar'..."
+                            binding.tvStatus.text = getString(R.string.listening_for_wake_word)
                         }
                     }
                     onError = { error ->
@@ -316,7 +316,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateStateDisplay(state: AudioState) {
         binding.tvStatus.text = when (state) {
             AudioState.IDLE -> "Assistant ready"
-            AudioState.LISTENING_FOR_WAKE_WORD -> "Listening for 'Omar'..."
+            AudioState.LISTENING_FOR_WAKE_WORD -> getString(R.string.listening_for_wake_word)
             AudioState.WAKE_WORD_DETECTED -> "Wake word detected!"
             AudioState.RECORDING_COMMAND -> "Recording command..."
             AudioState.PROCESSING -> "Processing..."
@@ -330,7 +330,7 @@ class MainActivity : AppCompatActivity() {
     private fun showWelcomeMessage() {
         Toast.makeText(
             this,
-            "Welcome to OMAR! Please configure your API key in settings to get started.",
+            getString(R.string.welcome_message),
             Toast.LENGTH_LONG
         ).show()
     }
@@ -341,7 +341,7 @@ class MainActivity : AppCompatActivity() {
     private fun showPermissionDeniedMessage() {
         Toast.makeText(
             this,
-            "OMAR needs microphone permission to work. Please grant the permission and restart the app.",
+            getString(R.string.permission_microphone_required),
             Toast.LENGTH_LONG
         ).show()
     }

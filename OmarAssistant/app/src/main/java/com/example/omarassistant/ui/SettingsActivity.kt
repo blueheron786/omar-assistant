@@ -5,6 +5,7 @@ import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.example.omarassistant.R
 import com.example.omarassistant.config.ConfigManager
 import com.example.omarassistant.databinding.ActivitySettingsBinding
 import com.example.omarassistant.model.AssistantConfig
@@ -41,7 +42,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.apply {
-            title = "OMAR Settings"
+            title = getString(R.string.settings_title)
             setDisplayHomeAsUpEnabled(true)
         }
         

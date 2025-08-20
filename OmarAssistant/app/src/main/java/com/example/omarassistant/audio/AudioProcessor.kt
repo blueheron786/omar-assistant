@@ -13,7 +13,7 @@ import kotlin.math.sqrt
  * Implements battery-efficient continuous listening with configurable sensitivity
  */
 class AudioProcessor(
-    private var wakeWord: String = "omar",
+    private var wakeWord: String = "aisha",
     private var wakeWordSensitivity: Float = 0.7f,
     private var vadSensitivity: Float = 0.5f
 ) {

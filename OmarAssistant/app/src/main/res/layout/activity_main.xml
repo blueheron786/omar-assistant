@@ -48,7 +48,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="OMAR Status"
+                        android:text="@string/omar_status"
                         android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
                         android:textStyle="bold" />
 
