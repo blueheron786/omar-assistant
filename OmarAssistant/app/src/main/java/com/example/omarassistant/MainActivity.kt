@@ -322,6 +322,42 @@ class MainActivity : AppCompatActivity() {
             AudioState.PROCESSING -> "Processing..."
             AudioState.SPEAKING -> "Speaking..."
         }
+        
+        // Update visual indicator
+        val iconResource = when (state) {
+            AudioState.IDLE -> android.R.drawable.presence_invisible
+            AudioState.LISTENING_FOR_WAKE_WORD -> android.R.drawable.presence_away
+            AudioState.WAKE_WORD_DETECTED -> android.R.drawable.presence_online
+            AudioState.RECORDING_COMMAND -> android.R.drawable.ic_btn_speak_now
+            AudioState.PROCESSING -> android.R.drawable.ic_popup_sync
+            AudioState.SPEAKING -> android.R.drawable.ic_lock_silent_mode_off
+        }
+        binding.ivStatusIndicator.setImageResource(iconResource)
+        
+        // Animate the icon for active states
+        when (state) {
+            AudioState.WAKE_WORD_DETECTED, AudioState.RECORDING_COMMAND, AudioState.SPEAKING -> {
+                binding.ivStatusIndicator.animate()
+                    .scaleX(1.2f)
+                    .scaleY(1.2f)
+                    .setDuration(200)
+                    .withEndAction {
+                        binding.ivStatusIndicator.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .setDuration(200)
+                            .start()
+                    }
+                    .start()
+            }
+            else -> {
+                binding.ivStatusIndicator.animate()
+                    .scaleX(1.0f)
+                    .scaleY(1.0f)
+                    .setDuration(200)
+                    .start()
+            }
+        }
     }
     
     /**

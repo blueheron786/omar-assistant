@@ -10,6 +10,7 @@ import com.example.omarassistant.model.AudioState
 import com.example.omarassistant.model.AssistantConfig
 import com.example.omarassistant.model.ExecutionResult
 import com.example.omarassistant.model.VoiceCommand
+import com.example.omarassistant.tts.BeepType
 import com.example.omarassistant.tts.TextToSpeechEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -222,13 +223,17 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 updateState(AudioState.WAKE_WORD_DETECTED)
                 
                 // Provide audio feedback
-                ttsEngine.playBeep()
+                ttsEngine.playBeep(BeepType.WAKE_WORD)
                 
                 // Small delay before starting recording
                 delay(200)
                 
                 // Start recording user command
                 voiceRecorder?.startRecording()
+                
+                // Audio feedback for recording start
+                delay(100)
+                ttsEngine.playBeep(BeepType.COMMAND_START)
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling wake word detection", e)
@@ -245,6 +250,9 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             try {
                 updateState(AudioState.PROCESSING)
                 
+                // Audio feedback for recording end
+                ttsEngine.playBeep(BeepType.COMMAND_END)
+                
                 // Convert audio to text (simplified - in production use proper STT)
                 val text = simulateSpeechToText(audioData)
                 
@@ -258,16 +266,25 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                     Log.d(TAG, "Processing voice command: $text")
                     
                     val response = processCommand(command)
+                    
+                    // Success beep before speaking response
+                    ttsEngine.playBeep(BeepType.SUCCESS)
+                    delay(300) // Brief pause after success beep
+                    
                     speakResponse(response)
                     
                     onCommandProcessed?.invoke(command, response)
                     
                 } else {
+                    // Error beep for unrecognized speech
+                    ttsEngine.playBeep(BeepType.ERROR)
                     speakResponse("I didn't catch that. Could you please repeat?")
                 }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing voice recording", e)
+                // Error beep for processing failure
+                ttsEngine.playBeep(BeepType.ERROR)
                 speakResponse("I had trouble understanding that. Please try again.")
             } finally {
                 returnToListening()
