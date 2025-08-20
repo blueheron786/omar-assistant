@@ -310,8 +310,8 @@ class AudioProcessor(
             .windowed(2)
             .count { it[0] > avgEnergy * 0.5f && it[1] > avgEnergy * 0.5f }
         
-        // Enhanced analysis for vowel-heavy names like "Omar"
-        // Check for sustained energy segments (good for vowels like "oh", "aar", "aah")
+        // Enhanced analysis for vowel-heavy names like "Omar" (2 syllables)
+        // Check for sustained energy segments (good for vowels like "oh", "mar")
         val sustainedSegments = segmentEnergies.asSequence()
             .windowed(3)
             .count { window -> 
@@ -324,7 +324,7 @@ class AudioProcessor(
         // 2. Must have multiple segments with significant energy (syllables)
         // 3. Must have some continuous energy (connected speech)
         // 4. Energy must be significantly above threshold
-        // 5. Enhanced: Allow for sustained vowel segments (for names like Omar)
+        // 5. Enhanced: Allow for sustained vowel segments (for 2-syllable names like Omar)
         
         // Much more permissive criteria for wake word detection
         val hasEnergyVariation = energyVariation >= 1.1f && energyVariation <= 50f // More permissive

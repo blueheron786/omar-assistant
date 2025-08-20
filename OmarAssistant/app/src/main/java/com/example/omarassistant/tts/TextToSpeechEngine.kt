@@ -24,7 +24,7 @@ class TextToSpeechEngine(private val context: Context) {
     private var tts: TextToSpeech? = null
     private var isInitialized = false
     private var currentVolume = 1.0f
-    private var currentLanguage = Locale.US
+    private var currentLanguage = Locale.UK
     private var utteranceCounter = 0
     
     // Tone generator for beeps and sound effects
@@ -72,6 +72,13 @@ class TextToSpeechEngine(private val context: Context) {
                 // Set speech rate and pitch
                 ttsEngine.setSpeechRate(1.0f) // Normal speed
                 ttsEngine.setPitch(1.0f) // Normal pitch
+                
+                // Prefer a British male voice if available, with sensible fallbacks
+                val britishSelected = selectBritishMaleVoice(ttsEngine)
+                if (!britishSelected) {
+                    // Fallback to any English male voice or lower-pitch English
+                    selectMaleVoice(ttsEngine)
+                }
                 
                 // Set up utterance progress listener
                 ttsEngine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -149,21 +156,61 @@ class TextToSpeechEngine(private val context: Context) {
                     
                     if (englishVoice != null) {
                         ttsEngine.setVoice(englishVoice)
-                        ttsEngine.setPitch(0.8f) // Lower the pitch to make it sound more masculine
-                        Log.d(TAG, "Set English voice with lower pitch for masculine sound: ${englishVoice.name}")
                         return true
                     }
                 }
-            } else {
-                // For older Android versions, just lower the pitch
-                ttsEngine.setPitch(0.8f)
-                Log.d(TAG, "Lowered pitch for masculine sound on older Android version")
-                return true
             }
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "Error selecting male voice", e)
         }
         
+        return false
+    }
+
+    /**
+     * Try to select a British (en-GB) male voice if available.
+     * Falls back to any en-GB voice (with slightly lower pitch) if a clearly male voice isn't found.
+     */
+    private fun selectBritishMaleVoice(ttsEngine: TextToSpeech): Boolean {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                val voices = ttsEngine.voices ?: return false
+
+                val isEnGb: (Locale) -> Boolean = { loc ->
+                    (loc.language.equals("en", true) && loc.country.equals("GB", true)) ||
+                    loc.toString().equals("en_GB", true)
+                }
+
+                val enGbVoices = voices.filter { v -> isEnGb(v.locale) }
+                if (enGbVoices.isEmpty()) return false
+
+                // Prefer those that indicate male in the name
+                val maleEnGb = enGbVoices.firstOrNull { v ->
+                    v.name.contains("male", ignoreCase = true) ||
+                    v.name.contains("_m", ignoreCase = true) ||
+                    v.name.contains("-m", ignoreCase = true) ||
+                    v.name.contains("#male", ignoreCase = true)
+                }
+
+                val chosen = maleEnGb ?: enGbVoices.first()
+                val result = ttsEngine.setVoice(chosen)
+                if (result == TextToSpeech.SUCCESS) {
+                    if (maleEnGb == null) {
+                        // If it's not explicitly male, nudge pitch slightly lower
+                        ttsEngine.setPitch(0.9f)
+                        Log.d(TAG, "Set en-GB voice (not marked male), adjusted pitch: ${chosen.name}")
+                    } else {
+                        Log.d(TAG, "Set en-GB male voice: ${chosen.name}")
+                    }
+                    return true
+                } else {
+                    Log.w(TAG, "Failed to set en-GB voice: ${chosen.name}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error selecting British male voice", e)
+        }
         return false
     }
     
@@ -278,7 +325,8 @@ class TextToSpeechEngine(private val context: Context) {
     fun setLanguage(language: String) {
         try {
             val locale = when (language.lowercase()) {
-                "en" -> Locale.US
+                "en" -> Locale.UK
+                "en-gb", "en_gb", "en-uk", "en_GB" -> Locale.UK
                 "ar" -> Locale("ar")
                 "es" -> Locale("es")
                 "fr" -> Locale.FRENCH
@@ -292,7 +340,7 @@ class TextToSpeechEngine(private val context: Context) {
                 val result = tts?.setLanguage(locale)
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Log.w(TAG, "Language $language not supported, using English")
-                    tts?.setLanguage(Locale.US)
+                    tts?.setLanguage(Locale.UK)
                 } else {
                     Log.d(TAG, "Language set to: $language")
                 }
