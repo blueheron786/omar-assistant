@@ -24,7 +24,7 @@ class VoiceRecorder(
         private const val BUFFER_SIZE = 1024
         
         // Recording parameters
-        private const val MAX_RECORDING_DURATION_MS = 10000L // 10 seconds max
+        private const val MAX_RECORDING_DURATION_MS = 5000L // 5 seconds max (reduced from 10s)
         private const val SILENCE_THRESHOLD_MS = 3000L // 3 seconds of silence to stop (increased from 1.5s)
         private const val MIN_RECORDING_DURATION_MS = 200L // Minimum 0.2 seconds (reduced from 0.5s)
     }
@@ -198,7 +198,8 @@ class VoiceRecorder(
                     // Calculate audio energy for VAD
                     val energy = calculateAudioEnergy(audioBuffer, bytesRead)
                     val normalizedLevel = (energy / 32768.0f).coerceIn(0f, 1f)
-                    val energyThreshold = vadSensitivity * 800f
+                    // Use fixed threshold consistent with AudioProcessor (100 for VAD)
+                    val energyThreshold = 100f
                     val isVoiceActive = energy > energyThreshold
                     
                     // Update voice activity state
@@ -207,10 +208,12 @@ class VoiceRecorder(
                     if (isVoiceActive) {
                         lastSoundTime = currentTime
                         if (silenceStartTime > 0) {
+                            Log.d(TAG, "Voice detected, resetting silence timer. Energy: $energy")
                             silenceStartTime = 0L // Reset silence timer
                         }
                     } else {
                         if (silenceStartTime == 0L && currentTime - lastSoundTime > 100) {
+                            Log.d(TAG, "Silence started. Energy: $energy, threshold: $energyThreshold")
                             silenceStartTime = currentTime // Start silence timer
                         }
                     }
@@ -234,7 +237,7 @@ class VoiceRecorder(
                     // Stop if silence detected and minimum duration met
                     if (silenceDuration >= SILENCE_THRESHOLD_MS && 
                         recordingDuration >= MIN_RECORDING_DURATION_MS) {
-                        Log.d(TAG, "Silence detected - stopping recording")
+                        Log.d(TAG, "Silence detected - stopping recording. Silence: ${silenceDuration}ms, Recording: ${recordingDuration}ms")
                         break
                     }
                 }
