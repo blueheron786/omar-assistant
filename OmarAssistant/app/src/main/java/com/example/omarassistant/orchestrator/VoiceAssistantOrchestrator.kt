@@ -1,7 +1,12 @@
 package com.example.omarassistant.orchestrator
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import com.example.omarassistant.api.GeminiApiService
 import com.example.omarassistant.audio.AudioProcessor
 import com.example.omarassistant.audio.VoiceRecorder
@@ -36,6 +41,8 @@ class VoiceAssistantOrchestrator(private val context: Context) {
     private val ttsEngine = TextToSpeechEngine(context)
     private var audioProcessor: AudioProcessor? = null
     private var voiceRecorder: VoiceRecorder? = null
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var recognizerIntent: Intent? = null
     
     // State management
     private val _state = MutableStateFlow(AudioState.IDLE)
@@ -79,6 +86,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 
                 // Initialize audio components
                 setupAudioComponents(config)
+                setupSpeechRecognizer(config)
                 
                 Log.d(TAG, "Orchestrator initialized successfully")
             } ?: run {
@@ -252,12 +260,19 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 // Small delay before starting recording
                 delay(200)
                 
-                // Start recording user command
-                voiceRecorder?.startRecording()
+                // Pause wake listening while we capture speech
+                audioProcessor?.stopListening()
                 
-                // Audio feedback for recording start
-                delay(100)
-                ttsEngine.playBeep(BeepType.COMMAND_START)
+                // Start speech recognition if available, otherwise fallback to recorder
+                if (speechRecognizer != null && recognizerIntent != null) {
+                    startSpeechRecognition()
+                } else {
+                    Log.w(TAG, "SpeechRecognizer not available, falling back to internal recorder")
+                    // Audio feedback for recording start
+                    ttsEngine.playBeep(BeepType.COMMAND_START)
+                    delay(100)
+                    voiceRecorder?.startRecording()
+                }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error handling wake word detection", e)
@@ -315,6 +330,113 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             }
         }
     }
+
+    /**
+     * Initialize Android SpeechRecognizer with current language settings
+     */
+    private fun setupSpeechRecognizer(config: AssistantConfig) {
+        try {
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                Log.w(TAG, "Speech recognition not available on this device")
+                return
+            }
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Log.d(TAG, "onReadyForSpeech")
+                    ttsEngine.playBeep(BeepType.COMMAND_START)
+                }
+                override fun onBeginningOfSpeech() { Log.d(TAG, "onBeginningOfSpeech") }
+                override fun onRmsChanged(rmsdB: Float) { _audioLevel.value = rmsdB.coerceIn(0f, 12f) / 12f }
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() { Log.d(TAG, "onEndOfSpeech") }
+                override fun onError(error: Int) {
+                    Log.e(TAG, "Speech recognition error: $error")
+                    orchestratorScope.launch {
+                        ttsEngine.playBeep(BeepType.ERROR)
+                        speakResponse("Sorry, I couldn't hear that clearly.")
+                        returnToListening()
+                    }
+                }
+                override fun onResults(results: Bundle) {
+                    val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    val text = matches?.firstOrNull()?.trim().orEmpty()
+                    Log.d(TAG, "Speech results: $text")
+                    if (text.isNotEmpty()) {
+                        orchestratorScope.launch {
+                            updateState(AudioState.PROCESSING)
+                            val command = VoiceCommand(text, "voice_command", 0.9f)
+                            val response = processCommand(command)
+                            ttsEngine.playBeep(BeepType.SUCCESS)
+                            delay(200)
+                            speakResponse(response)
+                            onCommandProcessed?.invoke(command, response)
+                        }
+                    } else {
+                        orchestratorScope.launch {
+                            ttsEngine.playBeep(BeepType.ERROR)
+                            speakResponse("I didn't catch that. Could you repeat?")
+                            returnToListening()
+                        }
+                    }
+                }
+                override fun onPartialResults(partialResults: Bundle) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+
+            val locale = when (config.language.lowercase()) {
+                "en", "en-gb", "en_uk", "en-gb" -> java.util.Locale.UK
+                "ar" -> java.util.Locale("ar")
+                "es" -> java.util.Locale("es")
+                "fr" -> java.util.Locale.FRENCH
+                "de" -> java.util.Locale.GERMAN
+                else -> java.util.Locale.getDefault()
+            }
+
+            recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                // Silence/timeout tuning
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 700)
+            }
+            Log.d(TAG, "SpeechRecognizer set up with locale: ${locale}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to set up SpeechRecognizer", e)
+        }
+    }
+
+    private fun startSpeechRecognition() {
+        try {
+            if (recognizerIntent == null) {
+                Log.w(TAG, "Recognizer intent not ready")
+                return
+            }
+            val intent = recognizerIntent!!
+            updateState(AudioState.RECORDING_COMMAND)
+            speechRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting speech recognition", e)
+            orchestratorScope.launch {
+                ttsEngine.playBeep(BeepType.ERROR)
+                speakResponse("I couldn't start listening. Please try again.")
+                returnToListening()
+            }
+        }
+    }
+
+    private fun stopSpeechRecognition() {
+        try {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.cancel()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping speech recognition", e)
+        }
+    }
     
     /**
      * Process a voice command using LLM
@@ -370,6 +492,8 @@ class VoiceAssistantOrchestrator(private val context: Context) {
     private suspend fun returnToListening() {
         if (_isActive.value && currentConfig?.enableContinuousListening == true) {
             updateState(AudioState.LISTENING_FOR_WAKE_WORD)
+            // Resume wake word detection
+            try { audioProcessor?.startListening() } catch (_: Exception) {}
         } else {
             updateState(AudioState.IDLE)
         }
@@ -429,5 +553,9 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         orchestratorScope.cancel()
         stop()
         ttsEngine.cleanup()
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+        } catch (_: Exception) {}
     }
 }
