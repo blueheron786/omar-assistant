@@ -13,7 +13,7 @@ import kotlin.math.sqrt
  * Implements battery-efficient continuous listening with configurable sensitivity
  */
 class AudioProcessor(
-    private var wakeWord: String = "aisha",
+    private var wakeWord: String = "omar",
     private var wakeWordSensitivity: Float = 0.7f,
     private var vadSensitivity: Float = 0.5f
 ) {
@@ -25,7 +25,7 @@ class AudioProcessor(
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val BUFFER_SIZE = 4096 // Increased buffer for better wake word detection (256ms at 16kHz)
         private const val VAD_WINDOW_SIZE = 160 // 10ms at 16kHz
-        private const val WAKE_WORD_COOLDOWN_MS = 2000L
+        private const val WAKE_WORD_COOLDOWN_MS = 5000L // Increased to 5 seconds to reduce re-triggering
     }
     
     private var audioRecord: AudioRecord? = null
@@ -46,6 +46,13 @@ class AudioProcessor(
     private var adaptiveVadThreshold = 100f // Start with default
     private var isCalibrating = true
     private var calibrationStartTime = 0L
+    
+    // Log management to reduce spam
+    private var lastRejectLogTime = 0L
+    private var rejectLogCount = 0L
+    private val LOG_REJECT_INTERVAL_MS = 5000L // Log rejections every 5 seconds max
+    private var lastDetectLogTime = 0L
+    private val LOG_DETECT_INTERVAL_MS = 1000L // Log speech detections every 1 second max
     
     // Callbacks
     var onWakeWordDetected: (() -> Unit)? = null
@@ -239,12 +246,24 @@ class AudioProcessor(
     private fun detectWakeWord(audioSnippet: ShortArray, energy: Float): Boolean {
         // Use adaptive energy threshold instead of fixed one
         if (energy < adaptiveEnergyThreshold) {
-            // Log every speech attempt to help debug threshold issues
-            Log.d(TAG, "Speech rejected - Energy: $energy < Threshold: $adaptiveEnergyThreshold")
+            // Only log rejections periodically to avoid spam
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastRejectLogTime > LOG_REJECT_INTERVAL_MS) {
+                Log.d(TAG, "Speech rejected (${rejectLogCount + 1} rejections in ${(currentTime - lastRejectLogTime) / 1000}s) - Energy: $energy < Threshold: $adaptiveEnergyThreshold")
+                lastRejectLogTime = currentTime
+                rejectLogCount = 0
+            } else {
+                rejectLogCount++
+            }
             return false
         }
         
-        Log.i(TAG, "🎯 SPEECH DETECTED! Energy: $energy >= Threshold: $adaptiveEnergyThreshold")
+        // Only log speech detection periodically to avoid spam
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastDetectLogTime > LOG_DETECT_INTERVAL_MS) {
+            Log.i(TAG, "🎯 SPEECH DETECTED! Energy: $energy >= Threshold: $adaptiveEnergyThreshold")
+            lastDetectLogTime = currentTime
+        }
         
         // Record this speech energy for future threshold adaptation
         
@@ -309,17 +328,25 @@ class AudioProcessor(
         
         // Much more permissive criteria for wake word detection
         val hasEnergyVariation = energyVariation >= 1.1f && energyVariation <= 50f // More permissive
-        val hasMultipleSegments = significantSegments >= 1 && significantSegments <= 8 // Allow single syllable
         val hasStrongSignal = maxEnergy > adaptiveEnergyThreshold * 0.8f // Lower threshold
+        val hasContinuousEnergy = continuousEnergy >= 1 // At least some continuous energy
         
         val confidence = when {
             hasStrongSignal -> { // Primary requirement is just strong signal
-                // Much simpler confidence calculation
-                val energyScore = ((maxEnergy / adaptiveEnergyThreshold) / 2f).coerceIn(0f, 1f)
-                val basicScore = if (hasMultipleSegments && hasEnergyVariation) 0.8f else 0.6f
-                (energyScore * 0.5f + basicScore * 0.5f).coerceIn(0.3f, 1.0f) // Minimum 0.3 confidence
+                // Much simpler and more reliable confidence calculation
+                val energyScore = minOf(1.0f, (maxEnergy / adaptiveEnergyThreshold) / 3f) // More conservative energy scoring
+                val variationScore = if (hasEnergyVariation) 0.3f else 0.1f
+                val segmentScore = minOf(0.4f, significantSegments * 0.05f) // Reward multiple segments
+                val continuityScore = if (hasContinuousEnergy) 0.2f else 0.0f
+                
+                val totalScore = energyScore + variationScore + segmentScore + continuityScore
+                totalScore.coerceIn(0.3f, 1.0f) // Ensure minimum confidence of 0.3
             }
-            else -> 0f
+            else -> {
+                // Even if primary checks fail, give some confidence based on energy alone
+                val energyRatio = maxEnergy / adaptiveEnergyThreshold
+                if (energyRatio > 1.5f) 0.2f else 0.0f // Small confidence for very strong signals
+            }
         }
         
         Log.d(TAG, "Wake word analysis - Word: '$wakeWord', Duration: ${duration}ms, Energy: $energy, " +

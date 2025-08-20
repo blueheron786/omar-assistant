@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Assistant Aisha</string>
+    <string name="app_name">Assistant Omar</string>
     <string name="action_settings">Settings</string>
     
     <!-- Menu items -->
     <string name="menu_settings">Settings</string>
     
     <!-- Settings -->
-    <string name="settings_title">Aisha Settings</string>
+    <string name="settings_title">Omar Settings</string>
     <string name="api_configuration">API Configuration</string>
     <string name="gemini_api_key_hint">Gemini API Key</string>
     <string name="test_api_key">Test API Key</string>
@@ -26,7 +26,7 @@
     <string name="service_running">Service: Running</string>
     <string name="service_stopped">Service: Stopped</string>
     <string name="assistant_ready">Assistant ready</string>
-    <string name="listening_for_wake_word">Listening for \'Aisha\'…</string>
+    <string name="listening_for_wake_word">Listening for \'Omar\'…</string>
     <string name="wake_word_detected">Wake word detected!</string>
     <string name="recording_command">Recording command…</string>
     <string name="processing_command">Processing…</string>
@@ -48,22 +48,22 @@
     <string name="last_command">Last Command:</string>
     <string name="last_response">Last Response:</string>
     <string name="quick_tips">Quick Tips</string>
-    <string name="tips_text">• Say \'Aisha\' to wake up the assistant\n• Try: \'Turn on the lights\'\n• Try: \'What\'s the weather?\'\n• Try: \'Set volume to 50%\'\n• Configure your API key in Settings</string>
+    <string name="tips_text">• Say \'Omar\' to wake up the assistant\n• Try: \'Turn on the lights\'\n• Try: \'What\'s the weather?\'\n• Try: \'Set volume to 50%\'\n• Configure your API key in Settings</string>
     
     <!-- Notifications -->
-    <string name="notification_title">Assistant Aisha</string>
-    <string name="notification_listening">Listening for \'Aisha\'…</string>
+    <string name="notification_title">Assistant Omar</string>
+    <string name="notification_listening">Listening for \'Omar\'…</string>
     <string name="notification_stop">Stop</string>
     
     <!-- Permissions -->
-    <string name="permission_microphone_required">Aisha needs microphone permission to work. Please grant the permission and restart the app.</string>
-    <string name="welcome_message">Welcome to Aisha! Please configure your API key in settings to get started.</string>
+    <string name="permission_microphone_required">Omar needs microphone permission to work. Please grant the permission and restart the app.</string>
+    <string name="welcome_message">Welcome to Omar! Please configure your API key in settings to get started.</string>
     
     <!-- Error messages -->
     <string name="error_no_api_key">Please configure Gemini API key in settings first</string>
     <string name="error_api_connection">API connection failed. Check your settings.</string>
     <string name="error_processing_command">Error processing command</string>
-    <string name="error_initializing">Failed to initialize Aisha</string>
+    <string name="error_initializing">Failed to initialize Omar</string>
     
     <!-- Success messages -->
     <string name="api_connection_success">API connection successful!</string>

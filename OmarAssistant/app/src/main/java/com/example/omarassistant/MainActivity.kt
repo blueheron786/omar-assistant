@@ -94,7 +94,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setupUI() {
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.title = "Assistant Aisha"
+        supportActionBar?.title = "Assistant Omar"
         
         // Start/Stop button
         binding.btnToggleService.setOnClickListener {

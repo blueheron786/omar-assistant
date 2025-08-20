@@ -218,15 +218,15 @@ class VoiceAssistantService : Service() {
         
         val statusText = when (currentState) {
             AudioState.IDLE -> "Idle"
-            AudioState.LISTENING_FOR_WAKE_WORD -> "Listening for 'Omar'..."
-            AudioState.WAKE_WORD_DETECTED -> "Wake word detected!"
-            AudioState.RECORDING_COMMAND -> "Recording command..."
-            AudioState.PROCESSING -> "Processing..."
-            AudioState.SPEAKING -> "Speaking response..."
+            AudioState.LISTENING_FOR_WAKE_WORD -> getString(R.string.notification_listening)
+            AudioState.WAKE_WORD_DETECTED -> getString(R.string.wake_word_detected)
+            AudioState.RECORDING_COMMAND -> getString(R.string.recording_command)
+            AudioState.PROCESSING -> getString(R.string.processing_command)
+            AudioState.SPEAKING -> getString(R.string.speaking_response)
         }
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OMAR Assistant")
+            .setContentTitle(getString(R.string.notification_title))
             .setContentText(statusText)
             .setSmallIcon(R.drawable.ic_mic) // You'll need to add this icon
             .setContentIntent(pendingIntent)
