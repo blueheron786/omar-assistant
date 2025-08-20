@@ -117,6 +117,57 @@ class TextToSpeechEngine(private val context: Context) {
     }
     
     /**
+     * Try to select a male voice from available voices
+     * @return true if a male voice was successfully set, false otherwise
+     */
+    private fun selectMaleVoice(ttsEngine: TextToSpeech): Boolean {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                val voices = ttsEngine.voices
+                
+                // Look for male voices in English
+                val maleVoice = voices?.find { voice ->
+                    voice.locale.language == "en" && 
+                    (voice.name.contains("male", ignoreCase = true) || 
+                     voice.name.contains("man", ignoreCase = true) ||
+                     voice.name.contains("boy", ignoreCase = true))
+                }
+                
+                if (maleVoice != null) {
+                    val result = ttsEngine.setVoice(maleVoice)
+                    if (result == TextToSpeech.SUCCESS) {
+                        Log.d(TAG, "Successfully set male voice: ${maleVoice.name}")
+                        return true
+                    } else {
+                        Log.w(TAG, "Failed to set male voice: ${maleVoice.name}")
+                    }
+                } else {
+                    // If no specifically male voice found, try to find any English voice and lower pitch
+                    val englishVoice = voices?.find { voice ->
+                        voice.locale.language == "en"
+                    }
+                    
+                    if (englishVoice != null) {
+                        ttsEngine.setVoice(englishVoice)
+                        ttsEngine.setPitch(0.8f) // Lower the pitch to make it sound more masculine
+                        Log.d(TAG, "Set English voice with lower pitch for masculine sound: ${englishVoice.name}")
+                        return true
+                    }
+                }
+            } else {
+                // For older Android versions, just lower the pitch
+                ttsEngine.setPitch(0.8f)
+                Log.d(TAG, "Lowered pitch for masculine sound on older Android version")
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error selecting male voice", e)
+        }
+        
+        return false
+    }
+    
+    /**
      * Speak text with optional completion callback
      */
     fun speak(text: String, onComplete: (() -> Unit)? = null) {
