@@ -25,8 +25,8 @@ class VoiceRecorder(
         
         // Recording parameters
         private const val MAX_RECORDING_DURATION_MS = 10000L // 10 seconds max
-        private const val SILENCE_THRESHOLD_MS = 1500L // 1.5 seconds of silence to stop
-        private const val MIN_RECORDING_DURATION_MS = 500L // Minimum 0.5 seconds
+        private const val SILENCE_THRESHOLD_MS = 3000L // 3 seconds of silence to stop (increased from 1.5s)
+        private const val MIN_RECORDING_DURATION_MS = 200L // Minimum 0.2 seconds (reduced from 0.5s)
     }
     
     private var audioRecord: AudioRecord? = null
@@ -119,13 +119,22 @@ class VoiceRecorder(
         val recordedData = audioData.toByteArray()
         val recordingDuration = recordedData.size * 1000L / (SAMPLE_RATE * 2) // 16-bit = 2 bytes per sample
         
+        Log.d(TAG, "Processing recording - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes, Min required: ${MIN_RECORDING_DURATION_MS}ms")
+        
         withContext(Dispatchers.Main) {
-            if (recordingDuration >= MIN_RECORDING_DURATION_MS && recordedData.isNotEmpty()) {
-                onRecordingFinished?.invoke(recordedData)
-                Log.d(TAG, "Recording finished - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes")
-            } else {
+            try {
+                if (recordingDuration >= MIN_RECORDING_DURATION_MS && recordedData.isNotEmpty()) {
+                    Log.d(TAG, "Calling onRecordingFinished with ${recordedData.size} bytes")
+                    onRecordingFinished?.invoke(recordedData)
+                    Log.d(TAG, "Recording finished - Duration: ${recordingDuration}ms, Size: ${recordedData.size} bytes")
+                } else {
+                    Log.d(TAG, "Calling onRecordingCancelled - duration too short or empty")
+                    onRecordingCancelled?.invoke()
+                    Log.d(TAG, "Recording cancelled - too short or empty")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in recording callback", e)
                 onRecordingCancelled?.invoke()
-                Log.d(TAG, "Recording cancelled - too short or empty")
             }
         }
     }

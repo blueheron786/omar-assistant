@@ -235,7 +235,13 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         voiceRecorder = VoiceRecorder(config.vadSensitivity).apply {
             onRecordingStarted = { updateState(AudioState.RECORDING_COMMAND) }
             onRecordingFinished = { audioData -> handleVoiceRecorded(audioData) }
-            onRecordingCancelled = { orchestratorScope.launch { returnToListening() } }
+            onRecordingCancelled = { 
+                orchestratorScope.launch { 
+                    Log.d(TAG, "Voice recording was cancelled")
+                    speakResponse("I didn't hear anything. Please try again.")
+                    returnToListening() 
+                } 
+            }
             onVoiceActivityChanged = { /* Handle if needed */ }
             onAudioLevelChanged = { level -> _audioLevel.value = level }
         }
@@ -286,12 +292,14 @@ class VoiceAssistantOrchestrator(private val context: Context) {
     private fun handleVoiceRecorded(audioData: ByteArray) {
         orchestratorScope.launch {
             try {
+                Log.d(TAG, "handleVoiceRecorded called with ${audioData.size} bytes")
                 updateState(AudioState.PROCESSING)
                 
                 // Audio feedback for recording end - REMOVED
                 
                 // Convert audio to text (simplified - in production use proper STT)
                 val text = simulateSpeechToText(audioData)
+                Log.d(TAG, "simulateSpeechToText returned: '$text'")
                 
                 if (text.isNotEmpty()) {
                     val command = VoiceCommand(
@@ -348,9 +356,19 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 override fun onError(error: Int) {
                     Log.e(TAG, "Speech recognition error: $error")
                     orchestratorScope.launch {
-                        // Error beep - REMOVED
-                        speakResponse("Sorry, I couldn't hear that clearly.")
-                        returnToListening()
+                        when (error) {
+                            SpeechRecognizer.ERROR_NO_MATCH -> {
+                                Log.d(TAG, "No speech match from SpeechRecognizer, trying VoiceRecorder fallback")
+                                // Don't give immediate feedback - try VoiceRecorder instead
+                                updateState(AudioState.RECORDING_COMMAND)
+                                voiceRecorder?.startRecording()
+                            }
+                            else -> {
+                                // For other errors, give feedback and return to listening  
+                                speakResponse("Sorry, I couldn't hear that clearly.")
+                                returnToListening()
+                            }
+                        }
                     }
                 }
                 override fun onResults(results: Bundle) {

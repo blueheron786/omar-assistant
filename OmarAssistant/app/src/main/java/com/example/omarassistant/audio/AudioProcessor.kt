@@ -100,12 +100,25 @@ class AudioProcessor(
             
             isListening = true
             
-            // Initialize adaptive thresholds
-            calibrationStartTime = System.currentTimeMillis()
-            isCalibrating = true
-            adaptiveEnergyThreshold = 800f
-            adaptiveVadThreshold = 100f
-            Log.d(TAG, "Starting adaptive threshold calibration...")
+            // Initialize adaptive thresholds - preserve previous if recently calibrated
+            val currentTime = System.currentTimeMillis()
+            val wasRecentlyCalibrated = currentTime - lastThresholdUpdate < 30000L // Within last 30 seconds
+            
+            calibrationStartTime = currentTime
+            
+            if (!wasRecentlyCalibrated) {
+                // Fresh start - use conservative defaults
+                isCalibrating = true
+                adaptiveEnergyThreshold = 200f // Start lower than 800f
+                adaptiveVadThreshold = 100f
+                Log.d(TAG, "Starting fresh adaptive threshold calibration...")
+            } else {
+                // Recently calibrated - keep existing thresholds but make them slightly more permissive
+                isCalibrating = false
+                adaptiveEnergyThreshold = (adaptiveEnergyThreshold * 0.9f).coerceAtLeast(200f).coerceAtMost(800f)
+                adaptiveVadThreshold = (adaptiveVadThreshold * 0.9f).coerceAtLeast(100f).coerceAtMost(400f)
+                Log.d(TAG, "Preserving recent calibration with adjusted thresholds - Wake: $adaptiveEnergyThreshold, VAD: $adaptiveVadThreshold")
+            }
             
             Log.i(TAG, "Started listening for wake word: '$wakeWord' (sensitivity: $wakeWordSensitivity)")
             
@@ -457,7 +470,7 @@ class AudioProcessor(
                 .coerceAtLeast(ambientLevel * 1.2f) // Much closer to ambient level
                 .coerceAtMost(avgSpeechEnergy * 0.8f)
                 .coerceAtLeast(100f) // Absolute minimum for any environment
-                .coerceAtMost(400f) // Absolute maximum - reasonable for normal speech
+                .coerceAtMost(600f) // Increased cap to 600 but still reasonable
                 
             Log.i(TAG, "Thresholds adapted using speech history - Ambient: $ambientLevel, VAD: $adaptiveVadThreshold, Wake: $adaptiveEnergyThreshold")
         } else {
@@ -487,7 +500,7 @@ class AudioProcessor(
                 // Apply sensitivity but keep within reasonable bounds
                 (baseThreshold * wakeWordSensitivity)
                     .coerceAtLeast(100f)   // Never go below 100
-                    .coerceAtMost(400f)    // Never go above 400
+                    .coerceAtMost(600f)    // Increased max from 400 to 600
                     .coerceAtLeast(ambientLevel * 1.1f) // At least 10% above ambient
             }
             
