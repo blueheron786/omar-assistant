@@ -49,7 +49,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.OmarAssistant">
+            android:theme="@style/Theme.OmarAssistant.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -60,6 +60,7 @@
         <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
+            android:theme="@style/Theme.OmarAssistant.NoActionBar"
             android:parentActivityName=".MainActivity" />
         
         <!-- Voice Assistant Service -->
