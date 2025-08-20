@@ -94,10 +94,26 @@ class VoiceAssistantOrchestrator(private val context: Context) {
      * Start the voice assistant
      */
     suspend fun start() {
-        if (_isActive.value) return
+        if (_isActive.value) {
+            Log.d(TAG, "Voice assistant already active, skipping start")
+            return
+        }
+        
+        Log.d(TAG, "Starting voice assistant...")
         
         try {
             updateState(AudioState.LISTENING_FOR_WAKE_WORD)
+            
+            Log.d(TAG, "AudioProcessor instance: ${if (audioProcessor != null) "available" else "null"}")
+            
+            if (audioProcessor == null) {
+                Log.e(TAG, "AudioProcessor is null! Cannot start listening.")
+                onError?.invoke("AudioProcessor not initialized")
+                updateState(AudioState.IDLE)
+                return
+            }
+            
+            Log.d(TAG, "Calling audioProcessor.startListening()...")
             audioProcessor?.startListening()
             _isActive.value = true
             
@@ -190,7 +206,10 @@ class VoiceAssistantOrchestrator(private val context: Context) {
      * Setup audio processing components
      */
     private suspend fun setupAudioComponents(config: AssistantConfig) {
+        Log.d(TAG, "Setting up audio components...")
+        
         // Setup audio processor for wake word detection
+        Log.d(TAG, "Creating AudioProcessor with wake word: '${config.wakeWord}', sensitivity: ${config.wakeWordSensitivity}")
         audioProcessor = AudioProcessor(
             wakeWord = config.wakeWord,
             wakeWordSensitivity = config.wakeWordSensitivity,
@@ -201,7 +220,10 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             onAudioLevelChanged = { level -> _audioLevel.value = level }
         }
         
+        Log.d(TAG, "AudioProcessor created successfully")
+        
         // Setup voice recorder for command capture
+        Log.d(TAG, "Creating VoiceRecorder...")
         voiceRecorder = VoiceRecorder(config.vadSensitivity).apply {
             onRecordingStarted = { updateState(AudioState.RECORDING_COMMAND) }
             onRecordingFinished = { audioData -> handleVoiceRecorded(audioData) }
@@ -209,6 +231,8 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             onVoiceActivityChanged = { /* Handle if needed */ }
             onAudioLevelChanged = { level -> _audioLevel.value = level }
         }
+        
+        Log.d(TAG, "Audio components setup completed")
     }
     
     /**

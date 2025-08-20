@@ -40,6 +40,7 @@ class VoiceAssistantService : Service() {
     
     private var currentState = AudioState.IDLE
     private var notificationManager: NotificationManager? = null
+    private var isInitialized = false
     
     override fun onCreate() {
         super.onCreate()
@@ -58,7 +59,9 @@ class VoiceAssistantService : Service() {
         // Initialize orchestrator
         serviceScope.launch {
             try {
+                Log.d(TAG, "Initializing orchestrator...")
                 orchestrator.initialize()
+                isInitialized = true
                 Log.d(TAG, "Orchestrator initialized")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize orchestrator", e)
@@ -115,6 +118,14 @@ class VoiceAssistantService : Service() {
         
         serviceScope.launch {
             try {
+                // Wait for orchestrator to be initialized
+                Log.d(TAG, "Waiting for orchestrator initialization...")
+                while (!isInitialized) {
+                    delay(100) // Wait 100ms and check again
+                }
+                
+                Log.d(TAG, "Orchestrator ready, starting listening...")
+                
                 // Start as foreground service
                 startForeground(NOTIFICATION_ID, createNotification())
                 isRunning = true

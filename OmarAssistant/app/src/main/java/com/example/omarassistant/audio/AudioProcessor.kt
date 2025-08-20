@@ -46,10 +46,16 @@ class AudioProcessor(
      * Start continuous audio monitoring
      */
     suspend fun startListening() = withContext(Dispatchers.IO) {
-        if (isListening) return@withContext
+        if (isListening) {
+            Log.d(TAG, "Already listening, skipping start")
+            return@withContext
+        }
+        
+        Log.d(TAG, "Starting audio listening for wake word: '$wakeWord'")
         
         try {
             val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            Log.d(TAG, "Minimum buffer size: $bufferSize")
             audioRecord = AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 SAMPLE_RATE,
@@ -58,17 +64,29 @@ class AudioProcessor(
                 bufferSize.coerceAtLeast(BUFFER_SIZE * 2)
             )
             
+            Log.d(TAG, "AudioRecord created, state: ${audioRecord?.state}")
+            
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord initialization failed")
+                Log.e(TAG, "AudioRecord initialization failed - state: ${audioRecord?.state}")
                 return@withContext
             }
             
+            Log.d(TAG, "Starting recording...")
             audioRecord?.startRecording()
+            val recordingState = audioRecord?.recordingState
+            Log.d(TAG, "Recording state after start: $recordingState")
+            
+            if (recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                Log.e(TAG, "Failed to start recording - state: $recordingState")
+                return@withContext
+            }
+            
             isListening = true
             
             Log.i(TAG, "Started listening for wake word: '$wakeWord' (sensitivity: $wakeWordSensitivity)")
             
             // Start audio processing loop
+            Log.d(TAG, "Starting audio processing loop...")
             processAudioLoop()
             
         } catch (e: Exception) {
@@ -117,9 +135,17 @@ class AudioProcessor(
      * Main audio processing loop
      */
     private suspend fun processAudioLoop() = withContext(Dispatchers.IO) {
+        Log.d(TAG, "Audio processing loop started")
+        var loopCount = 0
+        
         while (isListening && audioRecord != null) {
             try {
                 val bytesRead = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
+                
+                if (loopCount < 5) { // Log first few iterations for debugging
+                    Log.d(TAG, "Audio loop iteration $loopCount: bytesRead=$bytesRead")
+                }
+                loopCount++
                 
                 if (bytesRead > 0) {
                     // Calculate audio energy for VAD
@@ -132,7 +158,13 @@ class AudioProcessor(
                     
                     // Smooth energy calculation
                     val smoothedEnergy = energyWindow.average().toFloat()
-                    val isVoiceActive = smoothedEnergy > (vadSensitivity * 1000)
+                    val vadThreshold = vadSensitivity * 200f // Much lower threshold for VAD
+                    val isVoiceActive = smoothedEnergy > vadThreshold
+                    
+                    // Log energy levels occasionally to see what's happening
+                    if (loopCount % 50 == 0) { // Every ~500ms
+                        Log.d(TAG, "Energy monitoring - Smoothed: $smoothedEnergy, VAD threshold: $vadThreshold, Voice active: $isVoiceActive")
+                    }
                     
                     // Notify listeners
                     withContext(Dispatchers.Main) {
@@ -183,15 +215,28 @@ class AudioProcessor(
      */
     private fun detectWakeWord(audioSnippet: ShortArray, energy: Float): Boolean {
         // Adjust energy threshold based on sensitivity (0.0-1.0 range)
-        val energyThreshold = wakeWordSensitivity * 150000f
+        // Use a much more reasonable threshold - normal speech is around 200-2000
+        val energyThreshold = wakeWordSensitivity * 800f // Much lower threshold
         
-        if (energy < energyThreshold) return false
+        Log.d(TAG, "detectWakeWord called - Energy: $energy, Threshold: $energyThreshold")
+        
+        if (energy < energyThreshold) {
+            Log.d(TAG, "Energy too low: $energy < $energyThreshold")
+            return false
+        }
         
         // Calculate duration
         val duration = audioSnippet.size.toFloat() / SAMPLE_RATE * 1000 // Duration in ms
         
+        Log.d(TAG, "Audio duration: ${duration}ms, snippet size: ${audioSnippet.size}")
+        
         // Accommodate both short (eye-shah ~600-900ms) and long (aah-eee-shah ~800-1200ms) pronunciations
-        if (duration < 400 || duration > 1500) return false
+        if (duration < 400 || duration > 1500) {
+            Log.d(TAG, "Duration out of range: ${duration}ms (expected 400-1500ms)")
+            return false
+        }
+        
+        Log.d(TAG, "Passed initial checks, proceeding with detailed analysis...")
         
         // Analyze energy distribution across the audio snippet
         val segments = 8 // More granular analysis

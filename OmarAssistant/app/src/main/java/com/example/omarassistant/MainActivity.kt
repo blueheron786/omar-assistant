@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
@@ -17,6 +18,7 @@ import com.example.omarassistant.model.AudioState
 import com.example.omarassistant.orchestrator.VoiceAssistantOrchestrator
 import com.example.omarassistant.service.VoiceAssistantService
 import com.example.omarassistant.ui.SettingsActivity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -62,6 +64,8 @@ class MainActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
+        // Refresh UI state when returning to activity
+        Log.d("MainActivity", "onResume - Service running: ${VoiceAssistantService.isRunning}")
         updateUI()
     }
     
@@ -198,9 +202,12 @@ class MainActivity : AppCompatActivity() {
      * Toggle voice service on/off
      */
     private fun toggleVoiceService() {
+        Log.d("MainActivity", "Toggle service clicked - Current state: ${VoiceAssistantService.isRunning}")
         if (VoiceAssistantService.isRunning) {
+            Log.d("MainActivity", "Stopping voice service")
             stopVoiceService()
         } else {
+            Log.d("MainActivity", "Starting voice service")
             startVoiceService()
         }
     }
@@ -218,11 +225,22 @@ class MainActivity : AppCompatActivity() {
                 return@launch
             }
             
+            // First, ensure service is completely stopped
+            if (VoiceAssistantService.isRunning) {
+                Log.d("MainActivity", "Service already running, stopping first")
+                stopService(Intent(this@MainActivity, VoiceAssistantService::class.java))
+                delay(500)
+            }
+            
+            Log.d("MainActivity", "Creating start service intent")
             val serviceIntent = Intent(this@MainActivity, VoiceAssistantService::class.java).apply {
                 action = VoiceAssistantService.ACTION_START_LISTENING
             }
             
             startForegroundService(serviceIntent)
+            
+            // Delay UI update to allow service to start
+            delay(500)
             updateUI()
         }
     }
@@ -231,11 +249,17 @@ class MainActivity : AppCompatActivity() {
      * Stop voice assistant service
      */
     private fun stopVoiceService() {
+        Log.d("MainActivity", "Creating stop service intent")
         val serviceIntent = Intent(this, VoiceAssistantService::class.java).apply {
             action = VoiceAssistantService.ACTION_STOP_LISTENING
         }
         startService(serviceIntent)
-        updateUI()
+        
+        // Delay UI update to allow service to stop
+        lifecycleScope.launch {
+            delay(300)
+            updateUI()
+        }
     }
     
     /**
