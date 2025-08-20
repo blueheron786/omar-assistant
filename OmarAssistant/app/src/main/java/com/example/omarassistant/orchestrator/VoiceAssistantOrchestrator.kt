@@ -268,8 +268,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                     startSpeechRecognition()
                 } else {
                     Log.w(TAG, "SpeechRecognizer not available, falling back to internal recorder")
-                    // Audio feedback for recording start
-                    ttsEngine.playBeep(BeepType.COMMAND_START)
+                    // Audio feedback for recording start - REMOVED
                     delay(100)
                     voiceRecorder?.startRecording()
                 }
@@ -289,8 +288,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             try {
                 updateState(AudioState.PROCESSING)
                 
-                // Audio feedback for recording end
-                ttsEngine.playBeep(BeepType.COMMAND_END)
+                // Audio feedback for recording end - REMOVED
                 
                 // Convert audio to text (simplified - in production use proper STT)
                 val text = simulateSpeechToText(audioData)
@@ -306,8 +304,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                     
                     val response = processCommand(command)
                     
-                    // Success beep before speaking response
-                    ttsEngine.playBeep(BeepType.SUCCESS)
+                    // Success beep before speaking response - REMOVED
                     delay(300) // Brief pause after success beep
                     
                     speakResponse(response)
@@ -315,15 +312,13 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                     onCommandProcessed?.invoke(command, response)
                     
                 } else {
-                    // Error beep for unrecognized speech
-                    ttsEngine.playBeep(BeepType.ERROR)
+                    // Error beep for unrecognized speech - REMOVED
                     speakResponse("I didn't catch that. Could you please repeat?")
                 }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing voice recording", e)
-                // Error beep for processing failure
-                ttsEngine.playBeep(BeepType.ERROR)
+                // Error beep for processing failure - REMOVED
                 speakResponse("I had trouble understanding that. Please try again.")
             } finally {
                 returnToListening()
@@ -344,7 +339,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     Log.d(TAG, "onReadyForSpeech")
-                    ttsEngine.playBeep(BeepType.COMMAND_START)
+                    // Command start beep - REMOVED
                 }
                 override fun onBeginningOfSpeech() { Log.d(TAG, "onBeginningOfSpeech") }
                 override fun onRmsChanged(rmsdB: Float) { _audioLevel.value = rmsdB.coerceIn(0f, 12f) / 12f }
@@ -353,7 +348,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                 override fun onError(error: Int) {
                     Log.e(TAG, "Speech recognition error: $error")
                     orchestratorScope.launch {
-                        ttsEngine.playBeep(BeepType.ERROR)
+                        // Error beep - REMOVED
                         speakResponse("Sorry, I couldn't hear that clearly.")
                         returnToListening()
                     }
@@ -367,14 +362,14 @@ class VoiceAssistantOrchestrator(private val context: Context) {
                             updateState(AudioState.PROCESSING)
                             val command = VoiceCommand(text, "voice_command", 0.9f)
                             val response = processCommand(command)
-                            ttsEngine.playBeep(BeepType.SUCCESS)
+                            // Success beep - REMOVED
                             delay(200)
                             speakResponse(response)
                             onCommandProcessed?.invoke(command, response)
                         }
                     } else {
                         orchestratorScope.launch {
-                            ttsEngine.playBeep(BeepType.ERROR)
+                            // Error beep - REMOVED
                             speakResponse("I didn't catch that. Could you repeat?")
                             returnToListening()
                         }
@@ -422,7 +417,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error starting speech recognition", e)
             orchestratorScope.launch {
-                ttsEngine.playBeep(BeepType.ERROR)
+                // Error beep - REMOVED
                 speakResponse("I couldn't start listening. Please try again.")
                 returnToListening()
             }
