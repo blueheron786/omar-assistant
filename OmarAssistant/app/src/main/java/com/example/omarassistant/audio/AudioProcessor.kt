@@ -25,7 +25,7 @@ class AudioProcessor(
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val BUFFER_SIZE = 4096 // Increased buffer for better wake word detection (256ms at 16kHz)
         private const val VAD_WINDOW_SIZE = 160 // 10ms at 16kHz
-        private const val WAKE_WORD_COOLDOWN_MS = 5000L // Increased to 5 seconds to reduce re-triggering
+        private const val WAKE_WORD_COOLDOWN_MS = 2000L // Reduced to 2 seconds with fixed thresholds
     }
     
     private var audioRecord: AudioRecord? = null
@@ -98,27 +98,13 @@ class AudioProcessor(
                 return@withContext
             }
             
+            // Use simple fixed thresholds - no more adaptive nonsense
             isListening = true
+            adaptiveEnergyThreshold = 150f // Fixed reasonable threshold
+            adaptiveVadThreshold = 100f    // Fixed VAD threshold
+            isCalibrating = false          // No calibration needed
             
-            // Initialize adaptive thresholds - preserve previous if recently calibrated
-            val currentTime = System.currentTimeMillis()
-            val wasRecentlyCalibrated = currentTime - lastThresholdUpdate < 30000L // Within last 30 seconds
-            
-            calibrationStartTime = currentTime
-            
-            if (!wasRecentlyCalibrated) {
-                // Fresh start - use conservative defaults
-                isCalibrating = true
-                adaptiveEnergyThreshold = 200f // Start lower than 800f
-                adaptiveVadThreshold = 100f
-                Log.d(TAG, "Starting fresh adaptive threshold calibration...")
-            } else {
-                // Recently calibrated - keep existing thresholds but make them slightly more permissive
-                isCalibrating = false
-                adaptiveEnergyThreshold = (adaptiveEnergyThreshold * 0.9f).coerceAtLeast(200f).coerceAtMost(800f)
-                adaptiveVadThreshold = (adaptiveVadThreshold * 0.9f).coerceAtLeast(100f).coerceAtMost(400f)
-                Log.d(TAG, "Preserving recent calibration with adjusted thresholds - Wake: $adaptiveEnergyThreshold, VAD: $adaptiveVadThreshold")
-            }
+            Log.d(TAG, "Using fixed thresholds - Wake: $adaptiveEnergyThreshold, VAD: $adaptiveVadThreshold")
             
             Log.i(TAG, "Started listening for wake word: '$wakeWord' (sensitivity: $wakeWordSensitivity)")
             
@@ -186,26 +172,18 @@ class AudioProcessor(
                     val energy = calculateAudioEnergy(audioBuffer, samplesRead)
                     val normalizedLevel = (energy / 32768.0f).coerceIn(0f, 1f)
                     
-                    // Update energy window for smoothing
+                    // Smooth energy calculation using simple window
                     energyWindow[energyIndex] = energy
                     energyIndex = (energyIndex + 1) % energyWindow.size
-                    
-                    // Update ambient energy tracking
-                    updateAmbientTracking(energy)
-                    
-                    // Smooth energy calculation
                     val smoothedEnergy = energyWindow.average().toFloat()
                     
-                    // Use adaptive thresholds instead of fixed ones
-                    updateAdaptiveThresholds()
+                    // Simple fixed threshold VAD
                     val isVoiceActive = smoothedEnergy > adaptiveVadThreshold
                     
-                    // Log energy levels and thresholds occasionally  
-                    if (System.currentTimeMillis() % 5000 < 100) { // Every ~5 seconds
-                        val ambientLevel = ambientEnergyWindow.average().toFloat()
-                        val calibrationStatus = if (isCalibrating) " (calibrating)" else " (adaptive)"
-                        Log.d(TAG, "Energy monitoring$calibrationStatus - Current: $smoothedEnergy, " +
-                                "Ambient: $ambientLevel, VAD threshold: $adaptiveVadThreshold, " +
+                    // Simple logging occasionally  
+                    if (System.currentTimeMillis() % 10000 < 100) { // Every ~10 seconds
+                        Log.d(TAG, "Energy monitoring - Current: $smoothedEnergy, " +
+                                "VAD threshold: $adaptiveVadThreshold, " +
                                 "Wake threshold: $adaptiveEnergyThreshold, Voice active: $isVoiceActive")
                     }
                     
@@ -253,16 +231,15 @@ class AudioProcessor(
     }
     
     /**
-     * Generic wake word detection using energy patterns that works with any word
-     * In production, you'd want to use a more sophisticated approach like keyword spotting models
+     * Simple wake word detection using fixed energy threshold
      */
     private fun detectWakeWord(audioSnippet: ShortArray, energy: Float): Boolean {
-        // Use adaptive energy threshold instead of fixed one
+        // Use simple fixed energy threshold
         if (energy < adaptiveEnergyThreshold) {
-            // Only log rejections periodically to avoid spam
+            // Only log rejections occasionally to avoid spam
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastRejectLogTime > LOG_REJECT_INTERVAL_MS) {
-                Log.d(TAG, "Speech rejected (${rejectLogCount + 1} rejections in ${(currentTime - lastRejectLogTime) / 1000}s) - Energy: $energy < Threshold: $adaptiveEnergyThreshold")
+                Log.d(TAG, "Speech rejected (${rejectLogCount + 1} rejections in ${(currentTime - lastRejectLogTime) / 1000}s) - Energy: $energy < Fixed threshold: $adaptiveEnergyThreshold")
                 lastRejectLogTime = currentTime
                 rejectLogCount = 0
             } else {
@@ -274,11 +251,9 @@ class AudioProcessor(
         // Only log speech detection periodically to avoid spam
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastDetectLogTime > LOG_DETECT_INTERVAL_MS) {
-            Log.i(TAG, "🎯 SPEECH DETECTED! Energy: $energy >= Threshold: $adaptiveEnergyThreshold")
+            Log.i(TAG, "🎯 SPEECH DETECTED! Energy: $energy >= Fixed threshold: $adaptiveEnergyThreshold")
             lastDetectLogTime = currentTime
         }
-        
-        // Record this speech energy for future threshold adaptation
         
         // Calculate duration - be more flexible for natural speech patterns
         val duration = audioSnippet.size.toFloat() / SAMPLE_RATE * 1000 // Duration in ms
@@ -374,8 +349,6 @@ class AudioProcessor(
         
         if (isWakeWord) {
             Log.i(TAG, "🎉 WAKE WORD DETECTED! '$wakeWord' - Confidence: $confidence > $confidenceThreshold")
-            // Only record speech energy when we actually detect a wake word
-            recordSpeechEnergy(energy)
         } else {
             Log.d(TAG, "Wake word rejected - Confidence: $confidence <= $confidenceThreshold")
         }
@@ -388,127 +361,6 @@ class AudioProcessor(
      */
     private fun shouldCheckForWakeWord(): Boolean {
         return System.currentTimeMillis() - lastWakeWordDetection > WAKE_WORD_COOLDOWN_MS
-    }
-    
-    /**
-     * Update ambient energy tracking for adaptive thresholds
-     */
-    private fun updateAmbientTracking(energy: Float) {
-        ambientEnergyWindow[ambientIndex] = energy
-        ambientIndex = (ambientIndex + 1) % ambientEnergyWindow.size
-    }
-    
-    /**
-     * Record speech energy for threshold adaptation
-     */
-    private fun recordSpeechEnergy(energy: Float) {
-        speechEnergyHistory.add(energy)
-        // Keep only recent speech samples (last 20 detections)
-        if (speechEnergyHistory.size > 20) {
-            speechEnergyHistory.removeAt(0)
-        }
-    }
-    
-    /**
-     * Update adaptive thresholds based on ambient noise and recent speech patterns
-     */
-    private fun updateAdaptiveThresholds() {
-        val currentTime = System.currentTimeMillis()
-        
-        // Update thresholds every 10 seconds, or every 2 seconds during calibration
-        val updateInterval = if (isCalibrating) 2000L else 10000L
-        if (currentTime - lastThresholdUpdate < updateInterval) {
-            return
-        }
-        
-        lastThresholdUpdate = currentTime
-        
-        // Check if calibration period is over (30 seconds)
-        if (isCalibrating && currentTime - calibrationStartTime > 30000) {
-            isCalibrating = false
-            Log.i(TAG, "Adaptive threshold calibration completed")
-        }
-        
-        // Calculate ambient noise level
-        val ambientLevel = if (ambientEnergyWindow.any { it > 0 }) {
-            ambientEnergyWindow.filter { it > 0 }.average().toFloat()
-        } else {
-            50f // Default low level
-        }
-        
-        // Calculate dynamic VAD threshold based on ambient noise
-        // During quiet times (like night), use lower threshold
-        // During noisy times, use higher threshold
-        adaptiveVadThreshold = when {
-            ambientLevel < 80 -> {
-                // Very quiet environment (night/whisper mode)
-                vadSensitivity * 50f
-            }
-            ambientLevel < 150 -> {
-                // Quiet environment  
-                vadSensitivity * 80f
-            }
-            ambientLevel < 300 -> {
-                // Normal environment
-                vadSensitivity * 120f
-            }
-            else -> {
-                // Noisy environment
-                vadSensitivity * 200f
-            }
-        }.coerceAtLeast(20f).coerceAtMost(400f)
-        
-        // Calculate dynamic wake word threshold
-        if (speechEnergyHistory.size >= 3) {
-            // If we have recent speech samples, use them to adapt
-            val avgSpeechEnergy = speechEnergyHistory.average().toFloat()
-            val minSpeechEnergy = speechEnergyHistory.minOrNull() ?: 200f
-            
-            // Set threshold between ambient and minimum speech energy
-            val baseThreshold = ambientLevel + (minSpeechEnergy - ambientLevel) * 0.3f
-            adaptiveEnergyThreshold = (baseThreshold * wakeWordSensitivity * 1.5f)
-                .coerceAtLeast(ambientLevel * 1.2f) // Much closer to ambient level
-                .coerceAtMost(avgSpeechEnergy * 0.8f)
-                .coerceAtLeast(100f) // Absolute minimum for any environment
-                .coerceAtMost(600f) // Increased cap to 600 but still reasonable
-                
-            Log.i(TAG, "Thresholds adapted using speech history - Ambient: $ambientLevel, VAD: $adaptiveVadThreshold, Wake: $adaptiveEnergyThreshold")
-        } else {
-            // No speech history yet, use ambient-based thresholds with strict limits
-            adaptiveEnergyThreshold = when {
-                ambientLevel < 50 -> {
-                    // Very quiet environment
-                    120f
-                }
-                ambientLevel < 100 -> {
-                    // Quiet environment
-                    150f  
-                }
-                ambientLevel < 200 -> {
-                    // Normal environment
-                    200f
-                }
-                ambientLevel < 400 -> {
-                    // Moderately noisy
-                    250f
-                }
-                else -> {
-                    // Very noisy environment  
-                    300f
-                }
-            }.let { baseThreshold ->
-                // Apply sensitivity but keep within reasonable bounds
-                (baseThreshold * wakeWordSensitivity)
-                    .coerceAtLeast(100f)   // Never go below 100
-                    .coerceAtMost(600f)    // Increased max from 400 to 600
-                    .coerceAtLeast(ambientLevel * 1.1f) // At least 10% above ambient
-            }
-            
-            if (currentTime - calibrationStartTime <= 5000L) {
-                // Only log during first 5 seconds of calibration to avoid spam
-                Log.d(TAG, "Calibrating thresholds - Ambient: $ambientLevel, VAD: $adaptiveVadThreshold, Wake: $adaptiveEnergyThreshold")
-            }
-        }
     }
     
     /**
