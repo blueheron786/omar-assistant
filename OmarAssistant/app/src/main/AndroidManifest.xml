@@ -28,6 +28,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FLASHLIGHT" />
     
+    <!-- Specify that camera is not required -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    
     <!-- Post notifications for voice assistant feedback -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

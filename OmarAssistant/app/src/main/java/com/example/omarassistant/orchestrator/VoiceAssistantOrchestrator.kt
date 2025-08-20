@@ -204,7 +204,7 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         voiceRecorder = VoiceRecorder(config.vadSensitivity).apply {
             onRecordingStarted = { updateState(AudioState.RECORDING_COMMAND) }
             onRecordingFinished = { audioData -> handleVoiceRecorded(audioData) }
-            onRecordingCancelled = { returnToListening() }
+            onRecordingCancelled = { orchestratorScope.launch { returnToListening() } }
             onVoiceActivityChanged = { /* Handle if needed */ }
             onAudioLevelChanged = { level -> _audioLevel.value = level }
         }

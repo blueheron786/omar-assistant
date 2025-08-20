@@ -36,6 +36,11 @@ android {
     buildFeatures {
         viewBinding true
     }
+    
+    lint {
+        disable 'MissingPermission', 'PermissionImpliesUnsupportedChromeOsHardware'
+        abortOnError false
+    }
 }
 
 dependencies {

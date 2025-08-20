@@ -180,9 +180,9 @@ class VoiceRecorder(
                     // Convert to byte array and store
                     val byteData = ByteArray(bytesRead * 2)
                     for (i in 0 until bytesRead) {
-                        val sample = audioBuffer[i]
+                        val sample = audioBuffer[i].toInt()
                         byteData[i * 2] = (sample and 0xFF).toByte()
-                        byteData[i * 2 + 1] = ((sample.toInt() shr 8) and 0xFF).toByte()
+                        byteData[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()
                     }
                     audioData.write(byteData)
                     
