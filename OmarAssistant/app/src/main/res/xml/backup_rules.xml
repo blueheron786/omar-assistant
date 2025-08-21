@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<full-backup-content>
-    <!-- Exclude encrypted preferences from backup -->
-    <exclude domain="sharedpref" path="omar_assistant_prefs"/>
-</full-backup-content>
