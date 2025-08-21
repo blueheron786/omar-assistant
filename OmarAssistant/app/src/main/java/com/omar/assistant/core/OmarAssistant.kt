@@ -154,10 +154,15 @@ class OmarAssistant(private val context: Context) {
     private suspend fun detectWakeWord(): Boolean {
         return withContext(Dispatchers.IO) {
             val audioData = audioProcessor.getLatestAudioData()
+            Log.d(TAG, "detectWakeWord: Got ${audioData.size} audio samples")
+            
             if (audioData.isNotEmpty()) {
                 // Use both keyword spotting and simple string matching
-                wakeWordDetector.detectWakeWord(audioData, wakeWords)
+                val detected = wakeWordDetector.detectWakeWord(audioData, wakeWords)
+                Log.d(TAG, "detectWakeWord: Wake word detection result = $detected")
+                detected
             } else {
+                Log.d(TAG, "detectWakeWord: No audio data available")
                 false
             }
         }

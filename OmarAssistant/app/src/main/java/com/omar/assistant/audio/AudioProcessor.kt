@@ -139,7 +139,10 @@ class AudioProcessor(private val context: Context) {
             val samplesNeeded = (sampleRate * durationMs) / 1000
             val availableSamples = minOf(samplesNeeded, audioBuffer.size)
             
+            Log.d(TAG, "getLatestAudioData: requested $durationMs ms ($samplesNeeded samples), available: $availableSamples")
+            
             if (availableSamples == 0) {
+                Log.d(TAG, "getLatestAudioData: No audio samples available")
                 return ShortArray(0)
             }
             
@@ -152,6 +155,7 @@ class AudioProcessor(private val context: Context) {
                 result[i] = bufferArray[startIndex + i]
             }
             
+            Log.d(TAG, "getLatestAudioData: Returning ${result.size} samples")
             return result
         }
     }

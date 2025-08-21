@@ -35,11 +35,23 @@ class WakeWordDetector(private val context: Context) {
      * Detect wake word in audio data
      */
     fun detectWakeWord(audioData: ShortArray, wakeWords: List<String>): Boolean {
+        Log.d(TAG, "detectWakeWord called with ${audioData.size} audio samples, wake words: $wakeWords")
+        
         if (audioData.isEmpty() || audioData.size < windowSize) {
+            Log.d(TAG, "Audio data too small: ${audioData.size} < $windowSize")
             return false
         }
         
         try {
+            // Simple energy-based detection first (for testing)
+            val energy = calculateEnergy(audioData)
+            Log.d(TAG, "Audio energy: $energy, threshold: $minEnergyThreshold")
+            
+            if (energy > minEnergyThreshold * 5) { // Higher threshold for testing
+                Log.d(TAG, "High energy detected - simulating wake word detection")
+                return true
+            }
+            
             // Convert to float for processing
             val floatData = audioData.map { it.toFloat() / Short.MAX_VALUE }.toFloatArray()
             
@@ -49,6 +61,8 @@ class WakeWordDetector(private val context: Context) {
             // Extract features
             val features = extractSpectralFeatures(preEmphasized)
             
+            Log.d(TAG, "Extracted ${features.size} spectral features")
+            
             // Check each wake word
             for (wakeWord in wakeWords) {
                 if (matchesWakeWord(features, wakeWord)) {
@@ -57,12 +71,24 @@ class WakeWordDetector(private val context: Context) {
                 }
             }
             
+            Log.d(TAG, "No wake word detected")
             return false
             
         } catch (e: Exception) {
             Log.e(TAG, "Error in wake word detection", e)
             return false
         }
+    }
+    
+    /**
+     * Calculate energy of audio signal
+     */
+    private fun calculateEnergy(audioData: ShortArray): Double {
+        var energy = 0.0
+        for (sample in audioData) {
+            energy += sample * sample
+        }
+        return energy / audioData.size
     }
     
     /**
