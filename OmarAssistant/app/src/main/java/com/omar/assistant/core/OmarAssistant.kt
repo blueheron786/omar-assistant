@@ -53,6 +53,9 @@ class OmarAssistant(private val context: Context) {
     // Configuration
     private val wakeWords = listOf("omar", "عمر", "3umar")
     private val commandTimeoutMs = 5000L // 5 seconds to speak command after wake word
+    private val wakeWordCooldownMs = 3000L // 3 seconds cooldown after processing a wake word
+    private var lastWakeWordTime = 0L
+    private val minSilenceBetweenWakeWords = 1000L // Require 1 second of silence before detecting another wake word
     
     init {
         initializeComponents()
@@ -114,13 +117,25 @@ class OmarAssistant(private val context: Context) {
     }
     
     /**
+     * Enable/disable debug logging for wake word detection
+     */
+    fun setDebugMode(enabled: Boolean) {
+        Log.d(TAG, "Debug mode set to: $enabled")
+        // You can add more debug flags here if needed
+    }
+    
+    /**
      * Main listening loop - continuously listen for wake word
      */
     private suspend fun mainListeningLoop() {
         while (currentCoroutineContext().isActive) {
             try {
                 // Listen for wake word
-                if (detectWakeWord()) {
+                val wakeWordDetected = detectWakeWord()
+                Log.d(TAG, "mainListeningLoop: Wake word detection result = $wakeWordDetected")
+                
+                if (wakeWordDetected) {
+                    Log.d(TAG, "mainListeningLoop: Processing wake word detection")
                     updateState(AssistantState.WAKE_WORD_DETECTED)
                     _responseFlow.emit("Yes?")
                     
@@ -132,8 +147,12 @@ class OmarAssistant(private val context: Context) {
                     if (command.isNotEmpty()) {
                         processCommand(command)
                     } else {
+                        Log.d(TAG, "mainListeningLoop: No command detected after wake word")
                         _responseFlow.emit("I didn't hear anything. Try again.")
                         textToSpeech.speak("I didn't hear anything. Try again.")
+                        
+                        // Wait longer before listening for wake word again to avoid immediate cycling
+                        delay(2000) // Wait 2 seconds to let TTS finish and give user time
                     }
                 }
                 
@@ -153,13 +172,35 @@ class OmarAssistant(private val context: Context) {
      */
     private suspend fun detectWakeWord(): Boolean {
         return withContext(Dispatchers.IO) {
+            // Check cooldown period to prevent immediate re-detection
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastWakeWordTime < wakeWordCooldownMs) {
+                Log.d(TAG, "detectWakeWord: Still in cooldown period")
+                return@withContext false
+            }
+            
             val audioData = audioProcessor.getLatestAudioData()
             Log.d(TAG, "detectWakeWord: Got ${audioData.size} audio samples")
             
             if (audioData.isNotEmpty()) {
+                // First check if there's actual voice activity
+                val hasVoiceActivity = vadDetector.isSpeechPresent(audioData)
+                Log.d(TAG, "detectWakeWord: Voice activity detected = $hasVoiceActivity")
+                
+                if (!hasVoiceActivity) {
+                    // No voice activity, so definitely no wake word
+                    return@withContext false
+                }
+                
                 // Use both keyword spotting and simple string matching
                 val detected = wakeWordDetector.detectWakeWord(audioData, wakeWords)
                 Log.d(TAG, "detectWakeWord: Wake word detection result = $detected")
+                
+                if (detected) {
+                    lastWakeWordTime = currentTime
+                    Log.d(TAG, "detectWakeWord: Wake word confirmed with voice activity")
+                }
+                
                 detected
             } else {
                 Log.d(TAG, "detectWakeWord: No audio data available")
