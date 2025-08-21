@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude sensitive files from backup -->
+    <exclude domain="sharedpref" path="api_keys.xml" />
+    <exclude domain="database" path="voice_data.db" />
+    <exclude domain="file" path="audio_cache" />
+</full-backup-content>

@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">Omar Assistant</string>
+    <string name="start_listening">Start Listening</string>
+    <string name="stop_listening">Stop Listening</string>
+    <string name="wake_word_detected">Omar detected!</string>
+    <string name="listening_for_command">Listening for command...</string>
+    <string name="processing_command">Processing command...</string>
+    <string name="assistant_ready">Omar is ready</string>
+    <string name="permission_required">Microphone permission required</string>
+    <string name="grant_permission">Grant Permission</string>
+    
+    <!-- Commands and responses -->
+    <string name="command_turn_on_light">Turning on the light</string>
+    <string name="command_turn_off_light">Turning off the light</string>
+    <string name="command_not_understood">I didn\'t understand that command</string>
+    <string name="hello_response">Hello! How can I help you?</string>
+    <string name="goodbye_response">Goodbye!</string>
+    
+    <!-- Notification -->
+    <string name="notification_title">Omar Assistant</string>
+    <string name="notification_text">Listening for wake word</string>
+    <string name="notification_channel_id">omar_assistant_channel</string>
+    <string name="notification_channel_name">Voice Assistant</string>
+    <string name="notification_channel_desc">Omar voice assistant notifications</string>
+</resources>

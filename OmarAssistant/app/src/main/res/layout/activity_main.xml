@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="24dp"
+    tools:context=".MainActivity">
+
+    <!-- Omar Logo/Title -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:text="OMAR"
+        android:textColor="@color/omar_primary"
+        android:textSize="48sp"
+        android:textStyle="bold" />
+
+    <!-- Status Indicator -->
+    <View
+        android:id="@+id/statusIndicator"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_marginTop="32dp"
+        android:background="#E0E0E0" />
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/assistant_ready"
+        android:textColor="@color/black"
+        android:textSize="18sp" />
+
+    <!-- Last Command Display -->
+    <TextView
+        android:id="@+id/tvLastCommand"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:background="#F5F5F5"
+        android:gravity="center"
+        android:minHeight="60dp"
+        android:padding="16dp"
+        android:text="Say 'Omar' to start"
+        android:textColor="@color/black"
+        android:textSize="16sp" />
+
+    <!-- Control Buttons -->
+    <LinearLayout
+        android:id="@+id/controlButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnStartStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:text="@string/start_listening"
+            android:textColor="@color/white" />
+
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="@color/white" />
+
+    </LinearLayout>
+
+    <!-- Debug Text Input (Debug builds only) -->
+    <LinearLayout
+        android:id="@+id/debugInputSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Debug: Simulate Voice Input"
+            android:textColor="@color/omar_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etDebugInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Type command (e.g. 'what time is it?')"
+                android:inputType="text"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnDebugSend"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Send"
+                android:textColor="@color/white" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Command History -->
+    <TextView
+        android:id="@+id/tvCommandHistory"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="32dp"
+        android:background="#F5F5F5"
+        android:gravity="top"
+        android:padding="16dp"
+        android:scrollbars="vertical"
+        android:text="Command History:\n"
+        android:textColor="@color/black"
+        android:textSize="14sp" />
+
+</LinearLayout>
