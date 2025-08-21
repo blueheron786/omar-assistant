@@ -573,15 +573,15 @@ class VoiceAssistantOrchestrator(private val context: Context) {
         // 2. Or use Android's SpeechRecognizer
         // 3. Or integrate with Whisper API
         
-        // For demo purposes, simulate some common commands based on audio characteristics
+        // For demo purposes, simulate more realistic commands including math
         val duration = audioData.size / (16000 * 2) // Approximate duration in seconds
         
         return when {
             duration < 1 -> ""
-            duration < 2 -> "hello"
-            duration < 3 -> listOf("turn on the lights", "what's the weather", "set volume to fifty").random()
-            duration < 5 -> listOf("turn off the living room light", "set thermostat to seventy two", "turn on flashlight").random()
-            else -> listOf("what's the weather like today", "turn on the lights in the bedroom", "set a timer for five minutes").random()
+            duration < 2 -> listOf("hi", "hey", "hello").random()
+            duration < 3 -> listOf("two plus two", "five plus five", "what time is it", "hello there").random()
+            duration < 5 -> listOf("what is two plus two", "what is five plus five", "what is the time", "turn on flashlight").random()
+            else -> listOf("what is two plus two equals", "what is five plus five equals", "what time is it today", "turn on the lights").random()
         }
     }
     

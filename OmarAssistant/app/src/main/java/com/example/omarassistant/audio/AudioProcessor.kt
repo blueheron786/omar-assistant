@@ -98,10 +98,10 @@ class AudioProcessor(
                 return@withContext
             }
             
-            // Use simple fixed thresholds - no more adaptive nonsense
+            // Use much more restrictive fixed thresholds
             isListening = true
-            adaptiveEnergyThreshold = 150f // Fixed reasonable threshold
-            adaptiveVadThreshold = 100f    // Fixed VAD threshold
+            adaptiveEnergyThreshold = 300f // Much higher threshold to reduce false positives
+            adaptiveVadThreshold = 150f    // Higher VAD threshold
             isCalibrating = false          // No calibration needed
             
             Log.d(TAG, "Using fixed thresholds - Wake: $adaptiveEnergyThreshold, VAD: $adaptiveVadThreshold")
@@ -314,27 +314,29 @@ class AudioProcessor(
         // 4. Energy must be significantly above threshold
         // 5. Enhanced: Allow for sustained vowel segments (for 2-syllable names like Omar)
         
-        // Much more permissive criteria for wake word detection
-        val hasEnergyVariation = energyVariation >= 1.1f && energyVariation <= 50f // More permissive
-        val hasStrongSignal = maxEnergy > adaptiveEnergyThreshold * 0.8f // Lower threshold
-        val hasContinuousEnergy = continuousEnergy >= 1 // At least some continuous energy
+        // Much more restrictive criteria for wake word detection
+        val hasEnergyVariation = energyVariation >= 2.0f && energyVariation <= 50f // More restrictive variation
+        val hasStrongSignal = maxEnergy > adaptiveEnergyThreshold * 1.2f // Higher threshold
+        val hasContinuousEnergy = continuousEnergy >= 2 // Need more continuous energy
+        val hasMultipleSegments = significantSegments >= 3 // Need at least 3 significant segments
         
         val confidence = when {
-            hasStrongSignal -> { // Primary requirement is just strong signal
-                // Much simpler and more reliable confidence calculation
-                val energyScore = minOf(1.0f, (maxEnergy / adaptiveEnergyThreshold) / 3f) // More conservative energy scoring
-                val variationScore = if (hasEnergyVariation) 0.3f else 0.1f
-                val segmentScore = minOf(0.4f, significantSegments * 0.05f) // Reward multiple segments
+            hasStrongSignal && hasEnergyVariation && hasContinuousEnergy && hasMultipleSegments -> {
+                // All criteria must be met for high confidence
+                val energyScore = minOf(0.4f, (maxEnergy / adaptiveEnergyThreshold) / 4f) // More conservative
+                val variationScore = if (hasEnergyVariation) 0.2f else 0.0f
+                val segmentScore = minOf(0.2f, significantSegments * 0.03f) // More conservative
                 val continuityScore = if (hasContinuousEnergy) 0.2f else 0.0f
                 
                 val totalScore = energyScore + variationScore + segmentScore + continuityScore
-                totalScore.coerceIn(0.3f, 1.0f) // Ensure minimum confidence of 0.3
+                totalScore.coerceIn(0.0f, 1.0f)
             }
-            else -> {
-                // Even if primary checks fail, give some confidence based on energy alone
+            hasStrongSignal && hasEnergyVariation -> {
+                // Partial match - lower confidence
                 val energyRatio = maxEnergy / adaptiveEnergyThreshold
-                if (energyRatio > 1.5f) 0.2f else 0.0f // Small confidence for very strong signals
+                if (energyRatio > 2.0f) 0.3f else 0.1f
             }
+            else -> 0.0f // No confidence if basic criteria not met
         }
         
         Log.d(TAG, "Wake word analysis - Word: '$wakeWord', Duration: ${duration}ms, Energy: $energy, " +
@@ -342,8 +344,8 @@ class AudioProcessor(
                 "Continuous: $continuousEnergy, Sustained: $sustainedSegments, " +
                 "Confidence: $confidence, Sensitivity: $wakeWordSensitivity")
         
-        // Much more permissive confidence threshold (0.1-0.4 range instead of 0.15-0.75)
-        val confidenceThreshold = (1.0f - wakeWordSensitivity) * 0.3f + 0.1f
+        // Much more restrictive confidence threshold
+        val confidenceThreshold = (1.0f - wakeWordSensitivity) * 0.5f + 0.3f // Higher base threshold
         
         val isWakeWord = confidence > confidenceThreshold
         
