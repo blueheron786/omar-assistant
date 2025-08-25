@@ -170,8 +170,9 @@ class AssistantOrchestrator(
         // IMPORTANT: Stop wake word detection to free up the microphone
         wakeWordDetector.stopListening()
         
-        // Small delay to ensure microphone is released
-        delay(100)
+        // Longer delay to ensure microphone is completely released
+        // This is critical for Android's SpeechRecognizer to work properly
+        delay(500)
         
         try {
             // Start speech recognition (now microphone should be available)
@@ -192,6 +193,9 @@ class AssistantOrchestrator(
         
         // Return to wake word listening - restart wake word detection
         _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+        
+        // Add delay before restarting wake word detection
+        delay(200)
         wakeWordDetector.startListening()
     }
     

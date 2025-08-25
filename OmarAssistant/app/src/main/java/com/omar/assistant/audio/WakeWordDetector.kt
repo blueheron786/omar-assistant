@@ -187,6 +187,10 @@ class WakeWordDetector(
     fun stopListening() {
         isListening = false
         detectionJob?.cancel()
+        
+        // Ensure audio manager stops recording completely
+        audioManager.stopRecording()
+        
         Log.d(TAG, "Stopped listening for wake words")
     }
     

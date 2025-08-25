@@ -92,14 +92,29 @@ class AudioManager(private val context: Context) {
             recordingJob?.cancel()
             
             audioRecord?.apply {
-                if (state == AudioRecord.STATE_INITIALIZED) {
-                    stop()
+                try {
+                    if (state == AudioRecord.STATE_INITIALIZED) {
+                        stop()
+                    }
+                } catch (e: IllegalStateException) {
+                    Log.w(TAG, "AudioRecord was already stopped or in invalid state", e)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error stopping AudioRecord", e)
                 }
-                release()
+                
+                try {
+                    release()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error releasing AudioRecord", e)
+                }
             }
             audioRecord = null
             
             Log.d(TAG, "Audio recording stopped")
+            
+            // Add a small delay to ensure complete cleanup
+            Thread.sleep(50)
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping audio recording", e)
         }
