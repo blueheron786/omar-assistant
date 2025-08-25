@@ -173,12 +173,6 @@ class AssistantOrchestrator(
         // Small delay to ensure microphone is released
         delay(100)
         
-        // Provide audio feedback
-        textToSpeechManager.speakAsync("Yes?")
-        
-        // Wait for TTS to finish before starting speech recognition
-        delay(500)
-        
         try {
             // Start speech recognition (now microphone should be available)
             val userInput = speechToTextManager.transcribeAudio()

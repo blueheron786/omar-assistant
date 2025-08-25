@@ -27,6 +27,8 @@ class SpeechToTextManager(private val context: Context) {
      * Returns the transcribed text or null if recognition fails
      */
     suspend fun transcribeAudio(): String? = suspendCancellableCoroutine { continuation ->
+        var lastPartialResult: String? = null // Store last partial result as fallback
+        
         try {
             if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                 Log.e(TAG, "Speech recognition not available")
@@ -68,12 +70,21 @@ class SpeechToTextManager(private val context: Context) {
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognition service busy"
                         SpeechRecognizer.ERROR_SERVER -> "Server error"
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
-                        else -> "Unknown error"
+                        else -> "Unknown error (code: $error)"
                     }
                     Log.e(TAG, "Speech recognition error: $errorMessage")
                     
-                    if (continuation.isActive) {
-                        continuation.resume(null)
+                    // If we have a partial result and the error is just "no match", use the partial result
+                    if ((error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) 
+                        && !lastPartialResult.isNullOrBlank()) {
+                        Log.i(TAG, "Using last partial result as fallback: $lastPartialResult")
+                        if (continuation.isActive) {
+                            continuation.resume(lastPartialResult)
+                        }
+                    } else {
+                        if (continuation.isActive) {
+                            continuation.resume(null)
+                        }
                     }
                     cleanup()
                 }
@@ -83,20 +94,27 @@ class SpeechToTextManager(private val context: Context) {
                     val transcription = matches?.firstOrNull()
                     
                     Log.d(TAG, "Speech recognition results: $transcription")
+                    Log.d(TAG, "All results: $matches")
                     
                     if (continuation.isActive) {
-                        continuation.resume(transcription)
+                        // Use the transcription if available, otherwise fall back to last partial result
+                        val finalResult = transcription ?: lastPartialResult
+                        continuation.resume(finalResult)
                     }
                     cleanup()
                 }
                 
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    Log.d(TAG, "Partial results: ${matches?.firstOrNull()}")
+                    val partialText = matches?.firstOrNull()
+                    if (!partialText.isNullOrBlank()) {
+                        lastPartialResult = partialText // Store for potential fallback
+                    }
+                    Log.d(TAG, "Partial results: $partialText")
                 }
                 
                 override fun onEvent(eventType: Int, params: Bundle?) {
-                    // Not used in this implementation
+                    Log.d(TAG, "Speech recognition event: $eventType")
                 }
             }
             
@@ -105,10 +123,14 @@ class SpeechToTextManager(private val context: Context) {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US") // Can be made configurable
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5) // Get more results
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000)
+                // Increase timeout values to be more lenient
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000)
+                // Add preference for offline recognition to avoid network issues
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false) // Keep online for better accuracy
             }
             
             speechRecognizer?.startListening(intent)
