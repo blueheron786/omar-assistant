@@ -125,9 +125,9 @@ class SpeechToTextManager(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US") // Can be made configurable
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5) // Get more results
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                // Increase timeout values to be more lenient
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
+                // Significantly increase timeout values to give more time
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000) // 5 seconds
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000) // 4 seconds
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000)
                 // Add preference for offline recognition to avoid network issues
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false) // Keep online for better accuracy
