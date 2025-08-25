@@ -167,11 +167,20 @@ class AssistantOrchestrator(
         
         _state.value = AssistantState.LISTENING_FOR_COMMAND
         
+        // IMPORTANT: Stop wake word detection to free up the microphone
+        wakeWordDetector.stopListening()
+        
+        // Small delay to ensure microphone is released
+        delay(100)
+        
         // Provide audio feedback
         textToSpeechManager.speakAsync("Yes?")
         
+        // Wait for TTS to finish before starting speech recognition
+        delay(500)
+        
         try {
-            // Start speech recognition
+            // Start speech recognition (now microphone should be available)
             val userInput = speechToTextManager.transcribeAudio()
             
             if (!userInput.isNullOrBlank()) {
@@ -187,8 +196,9 @@ class AssistantOrchestrator(
             handleError("I had trouble understanding you. Please try again.")
         }
         
-        // Return to wake word listening
+        // Return to wake word listening - restart wake word detection
         _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+        wakeWordDetector.startListening()
     }
     
     private suspend fun processUserInput(userInput: String) {
@@ -239,9 +249,17 @@ class AssistantOrchestrator(
                 Log.e(TAG, "Failed to speak response")
             }
             
+            // Return to wake word listening
+            _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+            wakeWordDetector.startListening()
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error processing user input", e)
             handleError("I'm sorry, I encountered an error while processing your request.")
+            
+            // Return to wake word listening even after error
+            _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+            wakeWordDetector.startListening()
         }
     }
     
@@ -249,6 +267,10 @@ class AssistantOrchestrator(
         _state.value = AssistantState.SPEAKING
         _lastResponse.value = errorMessage
         textToSpeechManager.speak(errorMessage)
+        
+        // Return to wake word listening after error
+        _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+        wakeWordDetector.startListening()
     }
     
     private fun addToConversationHistory(role: MessageRole, content: String) {
