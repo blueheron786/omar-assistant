@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.MultiplePermissionsReport
 import com.karumi.dexter.PermissionToken
@@ -136,9 +137,48 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        VoiceAssistantService.startService(this)
-        isServiceRunning = true
-        updateUI(AssistantState.LISTENING_FOR_WAKE_WORD)
+        // Disable start button and show validation progress
+        binding.buttonStartStop.isEnabled = false
+        binding.buttonStartStop.text = "Validating..."
+        
+        lifecycleScope.launch {
+            try {
+                val llmProvider = ServiceLocator.llmProvider
+                val result = llmProvider.validateApiKey()
+                
+                result.fold(
+                    onSuccess = { isValid ->
+                        if (isValid) {
+                            // API key is valid, start the service
+                            VoiceAssistantService.startService(this@MainActivity)
+                            isServiceRunning = true
+                            updateUI(AssistantState.LISTENING_FOR_WAKE_WORD)
+                            Toast.makeText(this@MainActivity, "Voice assistant started", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, "❌ API key validation failed", Toast.LENGTH_LONG).show()
+                            binding.buttonStartStop.isEnabled = true
+                            binding.buttonStartStop.text = "Start Assistant"
+                        }
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when {
+                            exception.message?.contains("API_KEY_INVALID") == true -> "Invalid API key"
+                            exception.message?.contains("PERMISSION_DENIED") == true -> "API key lacks necessary permissions"
+                            exception.message?.contains("QUOTA_EXCEEDED") == true -> "API quota exceeded"
+                            exception.message?.contains("No API key") == true -> "No API key configured"
+                            else -> "Validation failed: ${exception.message}"
+                        }
+                        Toast.makeText(this@MainActivity, "❌ Cannot start: $errorMessage", Toast.LENGTH_LONG).show()
+                        binding.buttonStartStop.isEnabled = true
+                        binding.buttonStartStop.text = "Start Assistant"
+                    }
+                )
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "❌ Failed to validate API key: ${e.message}", Toast.LENGTH_LONG).show()
+                binding.buttonStartStop.isEnabled = true
+                binding.buttonStartStop.text = "Start Assistant"
+            }
+        }
     }
     
     private fun stopVoiceAssistant() {

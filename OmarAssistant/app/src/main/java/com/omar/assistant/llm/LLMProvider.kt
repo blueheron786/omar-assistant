@@ -25,6 +25,12 @@ interface LLMProvider {
     fun isConfigured(): Boolean
     
     /**
+     * Validates the API key by making a test request to the service
+     * @return Result.success(true) if valid, Result.failure(exception) if invalid
+     */
+    suspend fun validateApiKey(): Result<Boolean>
+    
+    /**
      * Gets the name of this provider
      */
     fun getProviderName(): String

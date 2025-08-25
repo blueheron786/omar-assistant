@@ -21,7 +21,7 @@ class GeminiProvider(private val secureStorage: SecureStorage) : LLMProvider {
     
     companion object {
         private const val TAG = "GeminiProvider"
-        private const val MODEL_NAME = "gemini-pro"
+        private const val MODEL_NAME = "gemini-1.5-flash"
     }
     
     private var generativeModel: GenerativeModel? = null
@@ -189,6 +189,44 @@ class GeminiProvider(private val secureStorage: SecureStorage) : LLMProvider {
         }
         
         return result
+    }
+    
+    override suspend fun validateApiKey(): Result<Boolean> = withContext(Dispatchers.IO) {
+        val apiKey = secureStorage.getGeminiApiKey()
+        if (apiKey.isNullOrBlank()) {
+            return@withContext Result.failure(Exception("No API key configured"))
+        }
+        
+        try {
+            // Create a test model instance
+            val testModel = GenerativeModel(
+                modelName = MODEL_NAME,
+                apiKey = apiKey,
+                safetySettings = listOf(
+                    SafetySetting(HarmCategory.HARASSMENT, BlockThreshold.MEDIUM_AND_ABOVE),
+                    SafetySetting(HarmCategory.HATE_SPEECH, BlockThreshold.MEDIUM_AND_ABOVE),
+                    SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.MEDIUM_AND_ABOVE),
+                    SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.MEDIUM_AND_ABOVE),
+                )
+            )
+            
+            // Send a simple test request
+            Log.d(TAG, "Validating Gemini API key...")
+            val response = testModel.generateContent("Hello, please respond with just 'OK' to confirm you're working.")
+            
+            val responseText = response.text?.trim()
+            if (!responseText.isNullOrBlank()) {
+                Log.d(TAG, "API key validation successful. Response: $responseText")
+                return@withContext Result.success(true)
+            } else {
+                Log.w(TAG, "API key validation failed: Empty response")
+                return@withContext Result.failure(Exception("Invalid response from Gemini API"))
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "API key validation failed", e)
+            return@withContext Result.failure(e)
+        }
     }
     
     override fun isConfigured(): Boolean {

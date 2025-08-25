@@ -3,6 +3,8 @@ package com.omar.assistant.ui.settings
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.omar.assistant.core.di.ServiceLocator
 import com.omar.assistant.databinding.ActivitySettingsBinding
 
@@ -140,20 +142,54 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun testConnection() {
-        // Simple validation
-        val apiKey = binding.editTextApiKey.text.toString().trim()
-        if (apiKey.isEmpty() || apiKey.startsWith("****")) {
-            if (!secureStorage.hasGeminiApiKey()) {
-                Toast.makeText(this, "Please enter an API key first", Toast.LENGTH_SHORT).show()
-                return
-            }
+        // First save the API key if it's been entered
+        val apiKeyText = binding.editTextApiKey.text.toString().trim()
+        if (apiKeyText.isNotEmpty() && !apiKeyText.startsWith("****")) {
+            secureStorage.setGeminiApiKey(apiKeyText)
         }
         
-        // For now, just show success if API key is present
-        if (secureStorage.hasGeminiApiKey() || (!apiKey.isEmpty() && !apiKey.startsWith("****"))) {
-            Toast.makeText(this, "API key format looks valid", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Please enter a valid API key", Toast.LENGTH_SHORT).show()
+        // Check if we have an API key to test
+        if (!secureStorage.hasGeminiApiKey()) {
+            Toast.makeText(this, "Please enter an API key first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Disable the test button and show progress
+        binding.buttonTestConnection.isEnabled = false
+        binding.buttonTestConnection.text = "Testing..."
+        
+        // Test the API key using coroutines
+        lifecycleScope.launch {
+            try {
+                val llmProvider = ServiceLocator.llmProvider
+                val result = llmProvider.validateApiKey()
+                
+                result.fold(
+                    onSuccess = { isValid ->
+                        if (isValid) {
+                            Toast.makeText(this@SettingsActivity, "✅ API key is valid and working!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@SettingsActivity, "❌ API key validation failed", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when {
+                            exception.message?.contains("API_KEY_INVALID") == true -> "Invalid API key"
+                            exception.message?.contains("PERMISSION_DENIED") == true -> "API key lacks necessary permissions"
+                            exception.message?.contains("QUOTA_EXCEEDED") == true -> "API quota exceeded"
+                            exception.message?.contains("No API key") == true -> "No API key configured"
+                            else -> "Validation failed: ${exception.message}"
+                        }
+                        Toast.makeText(this@SettingsActivity, "❌ $errorMessage", Toast.LENGTH_LONG).show()
+                    }
+                )
+            } catch (e: Exception) {
+                Toast.makeText(this@SettingsActivity, "❌ Connection test failed: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                // Re-enable the test button
+                binding.buttonTestConnection.isEnabled = true
+                binding.buttonTestConnection.text = "Test Connection"
+            }
         }
     }
     
