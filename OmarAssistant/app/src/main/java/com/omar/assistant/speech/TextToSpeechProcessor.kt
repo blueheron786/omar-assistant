@@ -1,6 +1,8 @@
 package com.omar.assistant.speech
 
 import android.content.Context
+import android.media.ToneGenerator
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -20,6 +22,7 @@ class TextToSpeechProcessor(private val context: Context) {
     private val TAG = "TextToSpeechProcessor"
     
     private var textToSpeech: TextToSpeech? = null
+    private var toneGenerator: ToneGenerator? = null
     private var isInitialized = false
     private var isSpeaking = false
     
@@ -32,6 +35,7 @@ class TextToSpeechProcessor(private val context: Context) {
                 TextToSpeech.SUCCESS -> {
                     isInitialized = true
                     configureTTS()
+                    initializeToneGenerator()
                     Log.d(TAG, "TTS initialized successfully")
                     callback(true)
                 }
@@ -81,7 +85,44 @@ class TextToSpeechProcessor(private val context: Context) {
             })
         }
     }
-    
+
+    /**
+     * Initialize tone generator for audio cues
+     */
+    private fun initializeToneGenerator() {
+        try {
+            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            Log.d(TAG, "Tone generator initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize tone generator", e)
+        }
+    }
+
+    /**
+     * Play an audio cue beep for wake word detection (Google Assistant style pleasant chime)
+     */
+    fun playWakeWordCue() {
+        try {
+            // Try using more pleasant notification-style tones
+            // First chime (acknowledgment tone)
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 150)
+            
+            // Schedule second chime after a short delay 
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    // Use ACK tone which is typically more pleasant
+                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error playing second chime", e)
+                }
+            }, 100) // 100ms delay between chimes for quicker response
+            
+            Log.d(TAG, "Played wake word audio cue (notification style chimes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error playing wake word cue", e)
+        }
+    }
+
     /**
      * Speak text with default parameters
      */
@@ -284,6 +325,8 @@ class TextToSpeechProcessor(private val context: Context) {
      */
     fun cleanup() {
         stop()
+        toneGenerator?.release()
+        toneGenerator = null
         textToSpeech?.shutdown()
         textToSpeech = null
         isInitialized = false

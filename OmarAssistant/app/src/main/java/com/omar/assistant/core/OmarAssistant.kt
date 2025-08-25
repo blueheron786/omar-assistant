@@ -52,10 +52,14 @@ class OmarAssistant(private val context: Context) {
     
     // Configuration
     private val wakeWords = listOf("omar", "عمر", "3umar")
-    private val commandTimeoutMs = 5000L // 5 seconds to speak command after wake word
+    private val commandTimeoutMs = 8000L // 8 seconds to speak command after wake word
     private val wakeWordCooldownMs = 3000L // 3 seconds cooldown after processing a wake word
     private var lastWakeWordTime = 0L
     private val minSilenceBetweenWakeWords = 1000L // Require 1 second of silence before detecting another wake word
+    
+    // Timeout management
+    private var consecutiveTimeouts = 0
+    private val maxConsecutiveTimeouts = 2 // After 2 timeouts, go back to wake word listening
     
     init {
         initializeComponents()
@@ -83,8 +87,9 @@ class OmarAssistant(private val context: Context) {
             Log.w(TAG, "Already listening")
             return
         }
-        
+
         Log.d(TAG, "Starting Omar Assistant")
+        consecutiveTimeouts = 0 // Reset timeout counter
         updateState(AssistantState.LISTENING_FOR_WAKE_WORD)
         
         listeningJob = assistantScope.launch {
@@ -96,9 +101,7 @@ class OmarAssistant(private val context: Context) {
                 updateState(AssistantState.IDLE)
             }
         }
-    }
-    
-    /**
+    }    /**
      * Stop the voice assistant
      */
     suspend fun stopListening() {
@@ -137,22 +140,37 @@ class OmarAssistant(private val context: Context) {
                 if (wakeWordDetected) {
                     Log.d(TAG, "mainListeningLoop: Processing wake word detection")
                     updateState(AssistantState.WAKE_WORD_DETECTED)
-                    _responseFlow.emit("Yes?")
                     
-                    // Brief pause to let user know we heard them
-                    delay(500)
+                    // No audio cue - go straight to listening for command
+                    _responseFlow.emit("Listening...")
                     
                     // Listen for command
                     val command = listenForCommand()
                     if (command.isNotEmpty()) {
+                        consecutiveTimeouts = 0 // Reset timeout counter on success
                         processCommand(command)
                     } else {
-                        Log.d(TAG, "mainListeningLoop: No command detected after wake word")
-                        _responseFlow.emit("I didn't hear anything. Try again.")
-                        textToSpeech.speak("I didn't hear anything. Try again.")
+                        consecutiveTimeouts++
+                        Log.d(TAG, "mainListeningLoop: No command detected (timeout #$consecutiveTimeouts)")
                         
-                        // Wait longer before listening for wake word again to avoid immediate cycling
-                        delay(2000) // Wait 2 seconds to let TTS finish and give user time
+                        if (consecutiveTimeouts <= maxConsecutiveTimeouts) {
+                            val message = if (consecutiveTimeouts == 1) {
+                                "I didn't hear anything. Try again."
+                            } else {
+                                "Still listening. Please speak your command."
+                            }
+                            _responseFlow.emit(message)
+                            textToSpeech.speak(message)
+                            delay(3000)
+                        } else {
+                            // Too many timeouts, go back to wake word listening
+                            Log.d(TAG, "mainListeningLoop: Too many timeouts, returning to wake word listening")
+                            consecutiveTimeouts = 0
+                            val message = "Going back to wake word listening."
+                            _responseFlow.emit(message)
+                            textToSpeech.speak(message)
+                            delay(2000)
+                        }
                     }
                 }
                 
@@ -175,17 +193,31 @@ class OmarAssistant(private val context: Context) {
             // Check cooldown period to prevent immediate re-detection
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastWakeWordTime < wakeWordCooldownMs) {
-                Log.d(TAG, "detectWakeWord: Still in cooldown period")
+                // Only log occasionally to avoid spam
+                if (currentTime % 5000 < 100) {
+                    Log.d(TAG, "detectWakeWord: Still in cooldown period")
+                }
                 return@withContext false
             }
             
             val audioData = audioProcessor.getLatestAudioData()
-            Log.d(TAG, "detectWakeWord: Got ${audioData.size} audio samples")
+            
+            // Log more frequently to debug the issue
+            if (currentTime % 2000 < 100) { // Every ~2 seconds
+                Log.d(TAG, "detectWakeWord: Got ${audioData.size} audio samples")
+            }
             
             if (audioData.isNotEmpty()) {
+                // Calculate energy for debugging
+                val energy = audioData.map { it.toDouble() * it.toDouble() }.sum() / audioData.size
+                
                 // First check if there's actual voice activity
                 val hasVoiceActivity = vadDetector.isSpeechPresent(audioData)
-                Log.d(TAG, "detectWakeWord: Voice activity detected = $hasVoiceActivity")
+                
+                // Log more details for debugging the wake word detection issue
+                if (energy > 10000 || hasVoiceActivity) { // Log when there's any significant audio
+                    Log.d(TAG, "detectWakeWord: Energy: $energy, Voice activity: $hasVoiceActivity, samples: ${audioData.size}")
+                }
                 
                 if (!hasVoiceActivity) {
                     // No voice activity, so definitely no wake word
@@ -194,16 +226,30 @@ class OmarAssistant(private val context: Context) {
                 
                 // Use both keyword spotting and simple string matching
                 val detected = wakeWordDetector.detectWakeWord(audioData, wakeWords)
-                Log.d(TAG, "detectWakeWord: Wake word detection result = $detected")
+                
+                // TEMPORARY: Add energy-based fallback for debugging
+                val energyBasedDetection = energy > 15000 // Lowered energy threshold for normal speaking volume
                 
                 if (detected) {
-                    lastWakeWordTime = currentTime
-                    Log.d(TAG, "detectWakeWord: Wake word confirmed with voice activity")
+                    Log.d(TAG, "detectWakeWord: Wake word detected by algorithm")
+                } else if (energyBasedDetection && hasVoiceActivity) {
+                    Log.d(TAG, "detectWakeWord: Wake word detected by energy fallback (energy: $energy)")
                 }
                 
-                detected
+                val finalDetection = detected || (energyBasedDetection && hasVoiceActivity)
+                Log.d(TAG, "detectWakeWord: Final result = $finalDetection (algorithm: $detected, energy fallback: $energyBasedDetection)")
+                
+                if (finalDetection) {
+                    lastWakeWordTime = currentTime
+                    Log.d(TAG, "detectWakeWord: Wake word confirmed")
+                }
+                
+                finalDetection
             } else {
-                Log.d(TAG, "detectWakeWord: No audio data available")
+                // Log audio data issues more frequently
+                if (currentTime % 3000 < 100) {
+                    Log.d(TAG, "detectWakeWord: No audio data available - check microphone permissions/initialization")
+                }
                 false
             }
         }
@@ -217,32 +263,59 @@ class OmarAssistant(private val context: Context) {
         
         return withContext(Dispatchers.IO) {
             try {
-                // Wait for voice activity
+                Log.d(TAG, "listenForCommand: Starting to listen for command")
+                
+                // Simplified approach: wait for any speech and capture it
                 val startTime = System.currentTimeMillis()
                 var speechDetected = false
                 
+                Log.d(TAG, "listenForCommand: Waiting for speech (timeout: ${commandTimeoutMs}ms)")
+                
+                // Look for speech activity - much simpler approach
                 while (System.currentTimeMillis() - startTime < commandTimeoutMs) {
-                    val audioData = audioProcessor.getLatestAudioData()
+                    val audioData = audioProcessor.getLatestAudioData(500) // Get 500ms of audio
                     
-                    if (vadDetector.isSpeechPresent(audioData)) {
-                        speechDetected = true
-                        break
+                    if (audioData.isNotEmpty()) {
+                        // Calculate simple energy for debugging
+                        val energy = audioData.map { it.toDouble() * it.toDouble() }.sum() / audioData.size
+                        val hasSpeech = vadDetector.isSpeechPresent(audioData)
+                        
+                        // Log occasionally for debugging
+                        if (System.currentTimeMillis() % 1000 < 200) { // Log every ~1 second
+                            Log.d(TAG, "listenForCommand: Energy: $energy, VAD says speech: $hasSpeech, audioSize: ${audioData.size}")
+                        }
+                        
+                        // Use either VAD or energy threshold (much more permissive for normal speaking volume)
+                        if (hasSpeech || energy > 8000) {
+                            speechDetected = true
+                            Log.d(TAG, "listenForCommand: Speech detected! Energy: $energy, VAD: $hasSpeech")
+                            break
+                        }
+                    } else {
+                        Log.d(TAG, "listenForCommand: No audio data available")
                     }
                     
-                    delay(50)
+                    delay(200) // Check every 200ms
                 }
                 
                 if (!speechDetected) {
-                    Log.d(TAG, "No speech detected within timeout")
+                    Log.d(TAG, "listenForCommand: No speech detected within timeout")
                     return@withContext ""
                 }
                 
-                // Capture speech for a few seconds
+                // Give user a moment to continue speaking
+                delay(200)
+                
+                // Capture speech for command
                 updateState(AssistantState.PROCESSING_COMMAND)
-                val speechAudio = audioProcessor.captureAudioForDuration(3000) // 3 seconds
+                Log.d(TAG, "listenForCommand: Capturing speech for 4 seconds")
+                val speechAudio = audioProcessor.captureAudioForDuration(4000)
                 
                 // Convert speech to text
-                speechToText.processAudio(speechAudio)
+                val result = speechToText.processAudio(speechAudio)
+                Log.d(TAG, "listenForCommand: Speech-to-text result: '$result'")
+                
+                result
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error listening for command", e)
