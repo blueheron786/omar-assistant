@@ -21,7 +21,7 @@ class GeminiProvider(private val secureStorage: SecureStorage) : LLMProvider {
     
     companion object {
         private const val TAG = "GeminiProvider"
-        private const val MODEL_NAME = "gemini-1.5-flash"
+        private const val MODEL_NAME = "gemini-2.0-flash"
     }
     
     private var generativeModel: GenerativeModel? = null
