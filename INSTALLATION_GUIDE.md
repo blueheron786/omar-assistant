@@ -31,6 +31,7 @@ When you first run the app, grant these essential permissions:
 - ✅ **Microphone** - Required for voice detection and wake word
 - ✅ **Camera** - Required for flashlight control
 - ✅ **Phone** - Required for making calls and phone status
+- ✅ **Contacts** - Required for looking up contacts by name
 - ✅ **Storage** - For secure settings storage
 - ✅ **Notifications** - For foreground service notifications
 
@@ -103,8 +104,9 @@ When you first run the app, grant these essential permissions:
 - "Omar, turn on the flashlight"
 - "3umar, turn off the flashlight"
 - "Omar, call 555-1234"
-- "3umar, dial mom"
-- "Omar, phone status"
+- "3umar, call Alia"
+- "Omar, dial mom"
+- "3umar, phone status"
 
 ### Smart Home Control
 - "Omar, turn on the lights"

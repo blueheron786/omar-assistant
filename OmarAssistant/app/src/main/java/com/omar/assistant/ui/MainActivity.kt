@@ -91,7 +91,8 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.MODIFY_AUDIO_SETTINGS,
             Manifest.permission.CAMERA,
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_PHONE_STATE
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CONTACTS
         )
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

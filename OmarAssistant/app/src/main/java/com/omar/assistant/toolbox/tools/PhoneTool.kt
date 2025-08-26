@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.net.Uri
+import android.provider.ContactsContract
 import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -27,7 +29,8 @@ class PhoneTool(private val context: Context) : Tool {
     
     override val parameters: Map<String, String> = mapOf(
         "action" to "Action to perform: 'call', 'dial', or 'status'",
-        "number" to "Phone number to call or dial (required for call/dial actions)"
+        "number" to "Phone number to call or dial (required for call/dial actions)",
+        "name" to "Contact name to look up and call (alternative to number for call/dial actions)"
     )
     
     private val telephonyManager: TelephonyManager by lazy {
@@ -37,10 +40,33 @@ class PhoneTool(private val context: Context) : Tool {
     override suspend fun execute(parameters: Map<String, Any>): ToolExecutionResult {
         val action = parameters["action"]?.toString()?.lowercase()
         val number = parameters["number"]?.toString()
+        val name = parameters["name"]?.toString()
         
         return when (action) {
-            "call" -> makeCall(number)
-            "dial" -> dialNumber(number)
+            "call" -> {
+                if (!number.isNullOrBlank()) {
+                    makeCall(number)
+                } else if (!name.isNullOrBlank()) {
+                    makeCallByName(name)
+                } else {
+                    ToolExecutionResult(
+                        success = false,
+                        message = "Either phone number or contact name is required for making a call"
+                    )
+                }
+            }
+            "dial" -> {
+                if (!number.isNullOrBlank()) {
+                    dialNumber(number)
+                } else if (!name.isNullOrBlank()) {
+                    dialByName(name)
+                } else {
+                    ToolExecutionResult(
+                        success = false,
+                        message = "Either phone number or contact name is required for dialing"
+                    )
+                }
+            }
             "status" -> getPhoneStatus()
             else -> ToolExecutionResult(
                 success = false,
@@ -55,7 +81,8 @@ class PhoneTool(private val context: Context) : Tool {
         return when (action) {
             "call", "dial" -> {
                 val number = parameters["number"]?.toString()
-                action in listOf("call", "dial") && !number.isNullOrBlank()
+                val name = parameters["name"]?.toString()
+                action in listOf("call", "dial") && (!number.isNullOrBlank() || !name.isNullOrBlank())
             }
             "status" -> true
             else -> false
@@ -217,6 +244,118 @@ class PhoneTool(private val context: Context) : Tool {
                 success = false,
                 message = "Failed to get phone status: ${e.message}"
             )
+        }
+    }
+    
+    private fun makeCallByName(name: String): ToolExecutionResult {
+        return try {
+            val phoneNumber = lookupContactByName(name)
+            if (phoneNumber != null) {
+                makeCall(phoneNumber)
+            } else {
+                ToolExecutionResult(
+                    success = false,
+                    message = "Contact '$name' not found or has no phone number"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling contact by name", e)
+            ToolExecutionResult(
+                success = false,
+                message = "Error looking up contact: ${e.message}"
+            )
+        }
+    }
+    
+    private fun dialByName(name: String): ToolExecutionResult {
+        return try {
+            val phoneNumber = lookupContactByName(name)
+            if (phoneNumber != null) {
+                dialNumber(phoneNumber)
+            } else {
+                ToolExecutionResult(
+                    success = false,
+                    message = "Contact '$name' not found or has no phone number"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dialing contact by name", e)
+            ToolExecutionResult(
+                success = false,
+                message = "Error looking up contact: ${e.message}"
+            )
+        }
+    }
+    
+    private fun lookupContactByName(name: String): String? {
+        // Check if we have permission to read contacts
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) 
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Contacts permission not granted")
+            return null
+        }
+        
+        try {
+            val projection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+            )
+            
+            // Query contacts with phone numbers
+            val cursor: Cursor? = context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                projection,
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
+                arrayOf("%$name%"),
+                null
+            )
+            
+            cursor?.use { c ->
+                if (c.moveToFirst()) {
+                    val nameIndex = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    val numberIndex = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    
+                    if (nameIndex >= 0 && numberIndex >= 0) {
+                        var bestMatch: Pair<String, String>? = null
+                        var exactMatch: Pair<String, String>? = null
+                        
+                        do {
+                            val contactName = c.getString(nameIndex)
+                            val phoneNumber = c.getString(numberIndex)
+                            
+                            if (contactName != null && phoneNumber != null) {
+                                // Check for exact match (case-insensitive)
+                                if (contactName.equals(name, ignoreCase = true)) {
+                                    exactMatch = Pair(contactName, phoneNumber)
+                                    break
+                                }
+                                
+                                // Check for partial match (first name, last name, or contains)
+                                if (bestMatch == null && 
+                                    (contactName.contains(name, ignoreCase = true) ||
+                                     name.split(" ").any { part -> 
+                                         contactName.contains(part, ignoreCase = true) && part.length > 2 
+                                     })) {
+                                    bestMatch = Pair(contactName, phoneNumber)
+                                }
+                            }
+                        } while (c.moveToNext())
+                        
+                        val result = exactMatch ?: bestMatch
+                        if (result != null) {
+                            Log.d(TAG, "Found contact: ${result.first} -> ${result.second}")
+                            return result.second
+                        }
+                    }
+                }
+            }
+            
+            Log.d(TAG, "No contact found for name: $name")
+            return null
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error querying contacts", e)
+            return null
         }
     }
     

@@ -23,7 +23,8 @@ A comprehensive Android voice assistant built in Kotlin that implements JARVIS-s
 
 ### 🔧 **Device Control**
 - **Flashlight control** - Turn device flashlight on/off with voice commands
-- **Phone integration** - Make calls and check phone status
+- **Phone integration** - Make calls by number or contact name, check phone status
+- **Contact lookup** - Find contacts by name and call them directly
 - **KASA HS200 smart light control** implementation
 - Extensible toolbox system for adding new devices/functions
 - REST API integration for IoT devices
@@ -119,7 +120,9 @@ A comprehensive Android voice assistant built in Kotlin that implements JARVIS-s
 
 ### Phone Functions
 - **"Call 555-1234"** - Make a phone call to the number
-- **"Dial mom"** - Open dialer (voice contact recognition not implemented)
+- **"Call Alia"** - Look up "Alia" in contacts and call her
+- **"Dial mom"** - Open dialer with mom's number from contacts
+- **"Dial 555-1234"** - Open dialer with specific number
 - **"Phone status"** - Get current phone/network status
 
 ### Smart Home Control
