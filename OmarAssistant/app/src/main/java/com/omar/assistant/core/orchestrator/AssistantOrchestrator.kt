@@ -194,8 +194,8 @@ class AssistantOrchestrator(
         // Return to wake word listening - restart wake word detection
         _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
         
-        // Add delay before restarting wake word detection
-        delay(200)
+        // Add longer delay before restarting wake word detection to ensure clean audio state
+        delay(1000)
         wakeWordDetector.startListening()
     }
     
@@ -255,6 +255,8 @@ class AssistantOrchestrator(
             
             // Return to wake word listening
             _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+            // Add delay to ensure clean audio state after TTS completion
+            delay(1500)
             wakeWordDetector.startListening()
             
         } catch (e: Exception) {
@@ -263,6 +265,8 @@ class AssistantOrchestrator(
             
             // Return to wake word listening even after error
             _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+            // Add delay to ensure clean audio state after error handling
+            delay(1500)
             wakeWordDetector.startListening()
         }
     }
@@ -274,6 +278,8 @@ class AssistantOrchestrator(
         
         // Return to wake word listening after error
         _state.value = AssistantState.LISTENING_FOR_WAKE_WORD
+        // Add delay to ensure clean audio state after error and TTS completion
+        delay(1500)
         wakeWordDetector.startListening()
     }
     

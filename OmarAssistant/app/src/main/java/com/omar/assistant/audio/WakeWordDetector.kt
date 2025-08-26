@@ -19,12 +19,13 @@ class WakeWordDetector(
         private const val TAG = "WakeWordDetector"
         // Fallback mode when Porcupine is not available
         private const val USE_FALLBACK_DETECTION = true
-        private const val WAKE_WORD_TIMEOUT_MS = 3000L
-        private const val MIN_SPEECH_ENERGY = 5000.0 // Increased threshold
-        private const val ENERGY_HISTORY_SIZE = 50 // Number of energy samples to keep for baseline
-        private const val ENERGY_SPIKE_MULTIPLIER = 3.0 // Energy must be 3x higher than baseline
-        private const val SILENCE_THRESHOLD_MULTIPLIER = 1.5 // Define silence as 1.5x baseline
-        private const val MIN_SILENCE_DURATION_MS = 1000L // Require 1 second of silence before listening again
+        private const val WAKE_WORD_TIMEOUT_MS = 5000L // Increased from 3000L
+        private const val MIN_SPEECH_ENERGY = 8000.0 // Increased threshold to reduce false positives
+        private const val ENERGY_HISTORY_SIZE = 80 // Increased for better baseline
+        private const val ENERGY_SPIKE_MULTIPLIER = 4.0 // Increased from 3.0 - require stronger signal
+        private const val SILENCE_THRESHOLD_MULTIPLIER = 2.0 // Increased from 1.5
+        private const val MIN_SILENCE_DURATION_MS = 2000L // Increased from 1000L
+        private const val POST_TTS_SILENCE_REQUIRED_MS = 3000L // New: require longer silence after TTS
     }
     
     private var porcupine: Porcupine? = null
@@ -37,6 +38,7 @@ class WakeWordDetector(
     private var lastWakeWordTime = 0L
     private var silenceStartTime = 0L
     private var isInSilence = false
+    private var detectionStartTime = 0L // New: track when detection started
     
     private val _wakeWordDetected = MutableSharedFlow<WakeWordResult>()
     val wakeWordDetected: SharedFlow<WakeWordResult> = _wakeWordDetected.asSharedFlow()
@@ -88,6 +90,7 @@ class WakeWordDetector(
         lastWakeWordTime = 0L
         silenceStartTime = 0L
         isInSilence = false
+        detectionStartTime = 0L
     }
     
     private fun getStoredPorcupineKey(): String? {
@@ -130,6 +133,7 @@ class WakeWordDetector(
         lastWakeWordTime = 0L
         silenceStartTime = System.currentTimeMillis()
         isInSilence = true
+        detectionStartTime = System.currentTimeMillis() // Track when detection started
         
         audioManager.startRecording().collect { audioData ->
             if (!isListening) return@collect
@@ -157,14 +161,28 @@ class WakeWordDetector(
             // Only proceed if we've had enough silence since last wake word
             val timeSinceLastWakeWord = currentTime - lastWakeWordTime
             val silenceDuration = if (isInSilence) currentTime - silenceStartTime else 0L
+            val timeSinceDetectionStart = currentTime - detectionStartTime
             
             if (timeSinceLastWakeWord < WAKE_WORD_TIMEOUT_MS) {
                 Log.d(TAG, "Still in timeout period (${timeSinceLastWakeWord}ms < ${WAKE_WORD_TIMEOUT_MS}ms)")
                 return@collect
             }
             
-            if (silenceDuration < MIN_SILENCE_DURATION_MS && lastWakeWordTime > 0) {
-                Log.d(TAG, "Not enough silence yet (${silenceDuration}ms < ${MIN_SILENCE_DURATION_MS}ms)")
+            // Require longer silence period if we just started detection (likely after TTS)
+            val requiredSilenceDuration = if (timeSinceDetectionStart < POST_TTS_SILENCE_REQUIRED_MS) {
+                POST_TTS_SILENCE_REQUIRED_MS
+            } else {
+                MIN_SILENCE_DURATION_MS
+            }
+            
+            if (silenceDuration < requiredSilenceDuration && lastWakeWordTime > 0) {
+                Log.d(TAG, "Not enough silence yet (${silenceDuration}ms < ${requiredSilenceDuration}ms)")
+                return@collect
+            }
+            
+            // Additional check: ensure we've been running for minimum time before accepting wake words
+            if (timeSinceDetectionStart < POST_TTS_SILENCE_REQUIRED_MS) {
+                Log.d(TAG, "Detection too soon after start (${timeSinceDetectionStart}ms < ${POST_TTS_SILENCE_REQUIRED_MS}ms)")
                 return@collect
             }
             
@@ -291,6 +309,7 @@ class WakeWordDetector(
         lastWakeWordTime = 0L
         silenceStartTime = 0L
         isInSilence = false
+        detectionStartTime = 0L
         
         Log.d(TAG, "Stopped listening for wake words")
     }
