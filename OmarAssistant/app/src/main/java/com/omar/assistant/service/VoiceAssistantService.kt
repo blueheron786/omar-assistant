@@ -196,5 +196,8 @@ class VoiceAssistantService : Service() {
         stateObserverJob?.cancel()
         serviceScope.cancel()
         assistantOrchestrator.release()
+        
+        // Reset ServiceLocator to ensure fresh instances on restart
+        ServiceLocator.reset()
     }
 }

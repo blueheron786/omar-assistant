@@ -47,6 +47,8 @@ class WakeWordDetector(
     suspend fun initialize(): Boolean = withContext(Dispatchers.IO) {
         if (USE_FALLBACK_DETECTION) {
             Log.d(TAG, "Using fallback wake word detection (energy-based)")
+            // Reset state for fresh initialization
+            resetState()
             return@withContext true
         }
         
@@ -55,6 +57,7 @@ class WakeWordDetector(
             val accessKey = getStoredPorcupineKey()
             if (accessKey.isNullOrBlank()) {
                 Log.w(TAG, "No Porcupine access key found, using fallback detection")
+                resetState()
                 return@withContext true
             }
             
@@ -65,14 +68,26 @@ class WakeWordDetector(
             
             porcupine = porcupineBuilder.build(context)
             Log.d(TAG, "Porcupine initialized successfully")
+            resetState()
             true
         } catch (e: PorcupineException) {
             Log.e(TAG, "Failed to initialize Porcupine, using fallback", e)
+            resetState()
             true // Still return true to use fallback
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error initializing Porcupine, using fallback", e)
+            resetState()
             true // Still return true to use fallback
         }
+    }
+
+    private fun resetState() {
+        isListening = false
+        energyHistory.clear()
+        baselineEnergy = MIN_SPEECH_ENERGY
+        lastWakeWordTime = 0L
+        silenceStartTime = 0L
+        isInSilence = false
     }
     
     private fun getStoredPorcupineKey(): String? {
