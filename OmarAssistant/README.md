@@ -21,7 +21,9 @@ A comprehensive Android voice assistant built in Kotlin that implements JARVIS-s
 - Context-aware conversations with memory
 - Intent recognition and command interpretation
 
-### 🔧 **Smart Home Integration**
+### 🔧 **Device Control**
+- **Flashlight control** - Turn device flashlight on/off with voice commands
+- **Phone integration** - Make calls and check phone status
 - **KASA HS200 smart light control** implementation
 - Extensible toolbox system for adding new devices/functions
 - REST API integration for IoT devices
@@ -109,6 +111,16 @@ A comprehensive Android voice assistant built in Kotlin that implements JARVIS-s
 - **"Omer, what time is it?"** - Get current time
 - **"3umar, tell me a joke"** - Request entertainment
 - **"Omer, turn on the light"** - Control smart home devices
+
+### Flashlight Control
+- **"Turn on the flashlight"** - Turn on device flashlight/torch
+- **"Turn off the flashlight"** - Turn off device flashlight
+- **"Toggle the flashlight"** - Switch flashlight state
+
+### Phone Functions
+- **"Call 555-1234"** - Make a phone call to the number
+- **"Dial mom"** - Open dialer (voice contact recognition not implemented)
+- **"Phone status"** - Get current phone/network status
 
 ### Smart Home Control
 - **"Turn on the lights"** - Controls KASA HS200 smart switch

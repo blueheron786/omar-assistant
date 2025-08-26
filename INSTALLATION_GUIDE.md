@@ -29,6 +29,8 @@ adb install "D:\temp\Omar\OmarAssistant\app\build\outputs\apk\debug\app-debug.ap
 ### 3. Grant Permissions
 When you first run the app, grant these essential permissions:
 - ✅ **Microphone** - Required for voice detection and wake word
+- ✅ **Camera** - Required for flashlight control
+- ✅ **Phone** - Required for making calls and phone status
 - ✅ **Storage** - For secure settings storage
 - ✅ **Notifications** - For foreground service notifications
 
@@ -96,6 +98,13 @@ When you first run the app, grant these essential permissions:
 - "3umar, tell me a joke"
 - "Omar, explain quantum physics"
 - "3umar, set a reminder for 3 PM"
+
+### Device Control
+- "Omar, turn on the flashlight"
+- "3umar, turn off the flashlight"
+- "Omar, call 555-1234"
+- "3umar, dial mom"
+- "Omar, phone status"
 
 ### Smart Home Control
 - "Omar, turn on the lights"

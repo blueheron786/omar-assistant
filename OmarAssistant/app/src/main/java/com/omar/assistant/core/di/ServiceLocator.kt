@@ -12,6 +12,8 @@ import com.omar.assistant.speech.SpeechToTextManager
 import com.omar.assistant.speech.TextToSpeechManager
 import com.omar.assistant.toolbox.ToolboxManager
 import com.omar.assistant.toolbox.tools.SmartLightTool
+import com.omar.assistant.toolbox.tools.FlashlightTool
+import com.omar.assistant.toolbox.tools.PhoneTool
 
 /**
  * Simple service locator for dependency injection
@@ -79,6 +81,8 @@ object ServiceLocator {
         return ToolboxManager().apply {
             // Register default tools
             registerTool(SmartLightTool())
+            registerTool(FlashlightTool(context))
+            registerTool(PhoneTool(context))
         }
     }
     
