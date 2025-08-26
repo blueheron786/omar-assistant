@@ -215,9 +215,13 @@ class AssistantOrchestrator(
             
             var finalResponse = llmResponse.text
             
+            Log.d(TAG, "LLM response received. Should use tools: ${llmResponse.shouldUseTools}, Tool calls: ${llmResponse.toolCalls.size}")
+            
             // Execute tools if requested
             if (llmResponse.shouldUseTools && llmResponse.toolCalls.isNotEmpty()) {
+                Log.d(TAG, "Executing ${llmResponse.toolCalls.size} tool(s)")
                 for (toolCall in llmResponse.toolCalls) {
+                    Log.d(TAG, "Executing tool: ${toolCall.toolName} with parameters: ${toolCall.parameters}")
                     val toolResult = toolboxManager.executeTool(
                         toolCall.toolName,
                         toolCall.parameters
@@ -225,12 +229,14 @@ class AssistantOrchestrator(
                     
                     if (toolResult.success) {
                         finalResponse = toolResult.message
-                        Log.d(TAG, "Tool executed successfully: ${toolCall.toolName}")
+                        Log.d(TAG, "Tool executed successfully: ${toolCall.toolName} - ${toolResult.message}")
                     } else {
                         finalResponse = "I tried to ${toolCall.toolName} but encountered an issue: ${toolResult.message}"
                         Log.e(TAG, "Tool execution failed: ${toolCall.toolName} - ${toolResult.message}")
                     }
                 }
+            } else {
+                Log.d(TAG, "No tools to execute, using LLM response as-is")
             }
             
             // Add assistant response to conversation history

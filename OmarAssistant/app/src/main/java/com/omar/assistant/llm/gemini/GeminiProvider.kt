@@ -98,20 +98,26 @@ class GeminiProvider(private val secureStorage: SecureStorage) : LLMProvider {
         }
         
         return """
-            You are OMAR, a helpful voice assistant. You can respond to user queries directly or use available tools when appropriate.
+            You are OMAR, a helpful voice assistant. You MUST use available tools when the user requests an action that can be performed by a tool.
             
             Available tools:
             $toolDescriptions
             
-            When you want to use a tool, respond in this format:
+            CRITICAL: When the user requests an action that matches a tool (like "turn on flashlight", "turn off flashlight", "call someone", etc.), you MUST respond using the tool format below. Do NOT just say the action is done - actually use the tool.
+            
+            Tool usage format (use EXACTLY this format when tools are needed):
             USE_TOOL: tool_name
             PARAMETERS: {"param1": "value1", "param2": "value2"}
             REASON: Brief explanation of why you're using this tool
             
-            Otherwise, respond normally to have a conversation with the user.
+            Examples:
+            - User: "turn on flashlight" -> USE_TOOL: flashlight, PARAMETERS: {"action": "on"}
+            - User: "turn off flashlight" -> USE_TOOL: flashlight, PARAMETERS: {"action": "off"}
+            - User: "call John" -> USE_TOOL: phone, PARAMETERS: {"action": "call", "contact": "John"}
+            
+            Only respond conversationally for questions, greetings, or requests that don't match any available tools.
             
             Keep responses concise and conversational, as they will be spoken aloud.
-            Be helpful, friendly, and efficient.
         """.trimIndent()
     }
     
@@ -145,23 +151,57 @@ class GeminiProvider(private val secureStorage: SecureStorage) : LLMProvider {
         val parametersLine = lines.find { it.startsWith("PARAMETERS:") }
         val reasonLine = lines.find { it.startsWith("REASON:") }
         
+        Log.d(TAG, "Parsing response: $responseText")
+        Log.d(TAG, "Tool line found: ${toolLine != null}")
+        Log.d(TAG, "Parameters line found: ${parametersLine != null}")
+        
         if (toolLine != null && parametersLine != null) {
             val toolName = toolLine.substringAfter("USE_TOOL:").trim()
             val parametersJson = parametersLine.substringAfter("PARAMETERS:").trim()
             val reason = reasonLine?.substringAfter("REASON:")?.trim() ?: "Using $toolName"
             
+            Log.d(TAG, "Attempting to use tool: $toolName with parameters: $parametersJson")
+            
             try {
                 // Simple JSON parsing for parameters
                 val parameters = parseSimpleJson(parametersJson)
                 
+                Log.d(TAG, "Tool call created successfully for: $toolName")
                 return LLMResponse(
                     text = reason,
                     shouldUseTools = true,
                     toolCalls = listOf(ToolCall(toolName, parameters))
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse tool parameters", e)
+                Log.e(TAG, "Failed to parse tool parameters: $parametersJson", e)
             }
+        } else {
+            // Fallback: Check if the response suggests tool usage without proper format
+            val lowercaseResponse = responseText.lowercase()
+            
+            // Check for flashlight-related responses
+            if (lowercaseResponse.contains("flashlight")) {
+                when {
+                    lowercaseResponse.contains("turned on") || lowercaseResponse.contains("on") -> {
+                        Log.d(TAG, "Detected flashlight 'on' intent without proper tool format, creating tool call")
+                        return LLMResponse(
+                            text = "Turning on flashlight",
+                            shouldUseTools = true,
+                            toolCalls = listOf(ToolCall("flashlight", mapOf("action" to "on")))
+                        )
+                    }
+                    lowercaseResponse.contains("turned off") || lowercaseResponse.contains("off") -> {
+                        Log.d(TAG, "Detected flashlight 'off' intent without proper tool format, creating tool call")
+                        return LLMResponse(
+                            text = "Turning off flashlight",
+                            shouldUseTools = true,
+                            toolCalls = listOf(ToolCall("flashlight", mapOf("action" to "off")))
+                        )
+                    }
+                }
+            }
+            
+            Log.d(TAG, "No tool usage detected in response, treating as conversational")
         }
         
         // Regular conversational response
