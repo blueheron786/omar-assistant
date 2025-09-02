@@ -1,13 +1,13 @@
-# OMAR Voice Assistant - Installation & Setup Guide
+# ZAYD Voice Assistant - Installation & Setup Guide
 
-## 🎉 Build Complete!
+## 🎉 Congratulations!
 
-Your fully functional JARVIS-style Android voice assistant "OMAR" has been successfully built!
+Your fully functional JARVIS-style Android voice assistant "ZAYD" has been successfully built!
 
 ### 📍 APK Location
 The app is ready for installation at:
 ```
-D:\temp\Omar\OmarAssistant\app\build\outputs\apk\debug\app-debug.apk
+D:\temp\Zayd\ZaydAssistant\app\build\outputs\apk\debug\app-debug.apk
 ```
 
 ## 📱 Installation Steps
@@ -19,7 +19,7 @@ D:\temp\Omar\OmarAssistant\app\build\outputs\apk\debug\app-debug.apk
 ### 2. Install the APK
 ```bash
 # Option 1: Using ADB (if connected to computer)
-adb install "D:\temp\Omar\OmarAssistant\app\build\outputs\apk\debug\app-debug.apk"
+adb install "D:\temp\Zayd\ZaydAssistant\app\build\outputs\apk\debug\app-debug.apk"
 
 # Option 2: Transfer to phone and install manually
 # - Copy the APK to your phone
@@ -38,7 +38,7 @@ When you first run the app, grant these essential permissions:
 ## 🚀 Quick Start Guide
 
 ### 1. First Launch
-1. Open the "OMAR Assistant" app
+1. Open the "ZAYD Assistant" app
 2. Go to Settings (gear icon in top menu)
 3. Enter your Gemini API key in "LLM Settings"
 
@@ -53,16 +53,16 @@ When you first run the app, grant these essential permissions:
 2. Enter your KASA HS200 switch IP address
 3. Test the connection
 
-### 4. Start Using OMAR
+### 4. Start Using ZAYD
 1. Return to main screen
 2. Tap "Start Service" to begin background listening
-3. Say "Omar" or "3umar" to wake the assistant
+3. Say "Zayd" to wake the assistant
 4. Speak your command or question
 
 ## 🎯 Key Features Implemented
 
 ### ✅ Core Voice Assistant
-- **Wake Word Detection**: "omer" and "3umar" using Porcupine
+- **Wake Word Detection**: "zayd" using Porcupine
 - **Voice Activity Detection**: Energy-based speech detection
 - **Speech-to-Text**: Android's built-in ASR
 - **Text-to-Speech**: Natural voice responses
@@ -95,27 +95,27 @@ When you first run the app, grant these essential permissions:
 ## 🗣️ Example Voice Commands
 
 ### General AI Assistant
-- "Omar, what's the weather like?"
-- "3umar, tell me a joke"
-- "Omar, explain quantum physics"
-- "3umar, set a reminder for 3 PM"
+- "Zayd, what's the weather like?"
+- "Zayd, tell me a joke"
+- "Zayd, explain quantum physics"
+- "Zayd, set a reminder for 3 PM"
 
 ### Device Control
-- "Omar, turn on the flashlight"
-- "3umar, turn off the flashlight"
-- "Omar, call 555-1234"
-- "3umar, call Alia"
-- "Omar, dial mom"
-- "3umar, phone status"
+- "Zayd, turn on the flashlight"
+- "Zayd, turn off the flashlight"
+- "Zayd, call 555-1234"
+- "Zayd, call Alia"
+- "Zayd, dial mom"
+- "Zayd, phone status"
 
 ### Smart Home Control
-- "Omar, turn on the lights"
-- "3umar, turn off the living room light"
-- "Omar, toggle the bedroom light"
+- "Zayd, turn on the lights"
+- "Zayd, turn off the living room light"
+- "Zayd, toggle the bedroom light"
 
 ### System Commands
-- "Omar, stop listening"
-- "3umar, open settings"
+- "Zayd, stop listening"
+- "Zayd, open settings"
 
 ## 🔧 Customization Options
 
@@ -130,7 +130,7 @@ When you first run the app, grant these essential permissions:
 
 ### Project Structure:
 ```
-com.omar.assistant/
+com.zayd.assistant/
 ├── core/                    # Core application components
 │   ├── di/                 # Dependency injection
 │   └── storage/            # Secure data storage

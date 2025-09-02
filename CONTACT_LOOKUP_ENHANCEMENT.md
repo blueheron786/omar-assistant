@@ -1,7 +1,7 @@
-# Omar Assistant - Contact Lookup Enhancement
+# Zayd Assistant - Contact Lookup Enhancement
 
 ## Enhancement Summary
-Added intelligent contact lookup functionality to Omar Assistant, allowing users to make phone calls using contact names instead of just phone numbers.
+Added intelligent contact lookup functionality to Zayd Assistant, allowing users to make phone calls using contact names instead of just phone numbers.
 
 ## New Functionality
 
@@ -68,20 +68,20 @@ private fun lookupContactByName(name: String): String? {
 
 ### Basic Name Calling
 ```
-User: "Omar, call Sarah"
-Omar: "Calling Sarah" (looks up Sarah's number and calls)
+User: "Zayd, call Sarah"
+Zayd: "Calling Sarah" (looks up Sarah's number and calls)
 ```
 
 ### Partial Name Matching
 ```
 User: "3umar, call mom"
-Omar: "Calling Mom" (finds contact with "mom" in name)
+Zayd: "Calling Mom" (finds contact with "mom" in name)
 ```
 
 ### Fallback to Number
 ```
-User: "Omar, call 555-1234"
-Omar: "Calling 555-1234" (direct number dialing still works)
+User: "Zayd, call 555-1234"
+Zayd: "Calling 555-1234" (direct number dialing still works)
 ```
 
 ## Benefits
@@ -128,4 +128,4 @@ Omar: "Calling 555-1234" (direct number dialing still works)
 
 ---
 
-**Result**: Omar Assistant now provides a truly natural phone calling experience, allowing users to call contacts by name just like they would ask a human assistant!
+**Result**: Zayd Assistant now provides a truly natural phone calling experience, allowing users to call contacts by name just like they would ask a human assistant!
